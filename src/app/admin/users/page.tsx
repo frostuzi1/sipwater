@@ -16,6 +16,22 @@ type AdminUserRow = {
   address: string | null;
 };
 
+type ProfileRowWithPhone = {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+};
+
+type ProfileRowWithContactNumber = {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  contact_number: string | null;
+  address: string | null;
+};
+
 export default function AdminUsersPage() {
   const router = useRouter();
   const [displayName, setDisplayName] = useState("Admin");
@@ -45,12 +61,13 @@ export default function AdminUsersPage() {
       .order("email", { ascending: true });
 
     if (!primary.error) {
-      const mapped = (primary.data ?? []).map((row) => ({
+      const rows = (primary.data ?? []) as ProfileRowWithPhone[];
+      const mapped = rows.map((row) => ({
         id: row.id,
         full_name: row.full_name ?? null,
-        email: (row as { email?: string | null }).email ?? null,
-        contact_number: (row as { phone?: string | null }).phone ?? null,
-        address: (row as { address?: string | null }).address ?? null,
+        email: row.email ?? null,
+        contact_number: row.phone ?? null,
+        address: row.address ?? null,
       }));
       setUsers(mapped.filter((row) => row.id !== excludedId));
       setUsersError(null);
@@ -64,13 +81,13 @@ export default function AdminUsersPage() {
       .order("email", { ascending: true });
 
     if (!fallback.error) {
-      const mapped = (fallback.data ?? []).map((row) => ({
+      const rows = (fallback.data ?? []) as ProfileRowWithContactNumber[];
+      const mapped = rows.map((row) => ({
         id: row.id,
         full_name: row.full_name ?? null,
-        email: (row as { email?: string | null }).email ?? null,
-        contact_number:
-          (row as { contact_number?: string | null }).contact_number ?? null,
-        address: (row as { address?: string | null }).address ?? null,
+        email: row.email ?? null,
+        contact_number: row.contact_number ?? null,
+        address: row.address ?? null,
       }));
       setUsers(mapped.filter((row) => row.id !== excludedId));
       setUsersError(null);
