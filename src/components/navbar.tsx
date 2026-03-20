@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, Menu, X, Droplets } from "lucide-react";
+import { ChevronDown, Menu, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 
 type NavbarProps = {
@@ -71,9 +71,11 @@ export function Navbar({
                 setMobileCategoryMenuOpen(false);
             }}
           >
-            <span className="inline-flex size-9 items-center justify-center rounded-xl bg-sky-500 text-white shadow-lg shadow-sky-500/30">
-              <Droplets className="size-5" aria-hidden="true" />
-            </span>
+            <img
+              src="/sip-logo.png"
+              alt="Sip logo"
+              className="size-9 rounded-full object-cover shadow-lg shadow-sky-500/30"
+            />
             <span className="text-lg">Sip Purified Water</span>
           </Link>
 

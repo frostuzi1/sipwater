@@ -792,9 +792,11 @@ export default function Home() {
             <div className="rounded-[32px] border border-sky-100 bg-white/90 p-6 shadow-xl shadow-sky-500/10 backdrop-blur-sm">
               <div className="flex items-center justify-between gap-4">
                 <div className="inline-flex items-center gap-3">
-                  <span className="inline-flex size-11 items-center justify-center rounded-3xl bg-sky-500 text-white shadow-lg shadow-sky-500/30">
-                    <Droplets className="size-6" aria-hidden="true" />
-                  </span>
+                  <img
+                    src="/sip-logo.png"
+                    alt="Sip logo"
+                    className="size-11 rounded-full object-cover shadow-lg shadow-sky-500/30"
+                  />
                   <div>
                     <div className="text-sm font-semibold text-slate-800">
                     Sip Purified Water Overview

@@ -17,6 +17,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Sip Purified Water",
   description: "Sip Water — clean hydration, delivered.",
+  icons: {
+    icon: "/sip-logo-circle.png",
+    shortcut: "/sip-logo-circle.png",
+    apple: "/sip-logo-circle.png",
+  },
 };
 
 export const viewport: Viewport = {
