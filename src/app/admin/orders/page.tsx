@@ -47,6 +47,11 @@ const getAdminStatusValue = (status: string | null | undefined) => {
 };
 const isDeliveredStatus = (status: string | null | undefined) =>
   (status ?? "").toLowerCase() === "delivered";
+const formatCurrency = (value: number | string | null | undefined) =>
+  Number(value ?? 0).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 
 export default function AdminOrdersPage() {
   const router = useRouter();
@@ -413,9 +418,16 @@ export default function AdminOrdersPage() {
       }
     }
 
+    const recalculatedTotal = updatedItems.reduce((sum, item) => {
+      const qty = Number((item as any).quantity ?? 0);
+      const unitPrice = Number((item as any).unit_price ?? 0);
+      if (!Number.isFinite(qty) || !Number.isFinite(unitPrice)) return sum;
+      return sum + Math.max(0, qty) * unitPrice;
+    }, 0);
+
     const { error } = await supabase
       .from("orders")
-      .update({ items: updatedItems } as never)
+      .update({ items: updatedItems, total_price: recalculatedTotal } as never)
       .eq("id", orderId);
 
     if (error) {
@@ -480,6 +492,14 @@ export default function AdminOrdersPage() {
   const pendingOrders = orders.filter(
     (order) => (order.status ?? "").toLowerCase() === "pending"
   );
+  const archivedOrders = orders.filter((order) => {
+    const status = (order.status ?? "").toLowerCase();
+    return status === "delivered" || status === "cancelled";
+  });
+  const activeOrders = orders.filter((order) => {
+    const status = (order.status ?? "").toLowerCase();
+    return status !== "delivered" && status !== "cancelled";
+  });
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-sky-50/50 text-slate-800">
@@ -492,9 +512,9 @@ export default function AdminOrdersPage() {
         onLogoutClick={handleLogout}
       />
 
-      <main className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6">
-        <section className="rounded-3xl border border-sky-100 bg-white p-6 shadow-sm">
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
+      <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-16">
+        <section className="rounded-3xl border border-sky-100 bg-white p-5 shadow-sm sm:p-6">
+          <h1 className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
             Manage Orders
           </h1>
           <p className="mt-1 text-sm text-slate-600">
@@ -521,14 +541,14 @@ export default function AdminOrdersPage() {
 
           {ordersLoading ? (
             <p className="mt-6 text-sm text-slate-600">Loading orders...</p>
-          ) : orders.length === 0 ? (
+          ) : activeOrders.length === 0 ? (
             <p className="mt-6 rounded-xl border border-sky-100 bg-sky-50/60 px-3 py-2 text-sm text-slate-700">
-              No orders found.
+              No active orders found.
             </p>
           ) : (
             <div className="space-y-6">
               <div className="mt-6 space-y-3 sm:hidden">
-                {orders.map((order) => {
+                {activeOrders.map((order) => {
                   const expanded = expandedOrderId === order.id;
                   const isDelivered = isDeliveredStatus(order.status);
                   return (
@@ -571,7 +591,7 @@ export default function AdminOrdersPage() {
                           Total
                         </p>
                         <p className="text-sm font-semibold text-slate-900 break-words">
-                          ₱{Number(order.total_price).toFixed(2)}
+                          ₱{formatCurrency(order.total_price)}
                         </p>
                       </div>
 
@@ -609,7 +629,17 @@ export default function AdminOrdersPage() {
                           }
                           className="flex-1 rounded-lg border border-sky-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-sky-50"
                         >
-                          {expanded ? "Hide details" : "View details"}
+                          <span className="inline-flex items-center gap-1">
+                            <span
+                              aria-hidden={true}
+                              className={`inline-block transition-transform duration-200 ${
+                                expanded ? "rotate-90" : "rotate-0"
+                              }`}
+                            >
+                              ▶
+                            </span>
+                            {expanded ? "Hide details" : "View details"}
+                          </span>
                         </button>
 
                         <button
@@ -636,7 +666,7 @@ export default function AdminOrdersPage() {
                             Order ID: {order.id}
                           </p>
                           <p className="text-sm text-slate-600">
-                            Total: ₱{Number(order.total_price).toFixed(2)}
+                            Total: ₱{formatCurrency(order.total_price)}
                           </p>
                         </div>
 
@@ -821,7 +851,7 @@ export default function AdminOrdersPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {orders.map((order) => {
+                      {activeOrders.map((order) => {
                         const expanded = expandedOrderId === order.id;
                         const isDelivered = isDeliveredStatus(order.status);
                         return (
@@ -837,7 +867,7 @@ export default function AdminOrdersPage() {
                             {order.contact_number ?? "-"}
                           </td>
                           <td className="px-4 py-3 text-slate-800">
-                            ₱{Number(order.total_price).toFixed(2)}
+                            ₱{formatCurrency(order.total_price)}
                           </td>
                           <td className="px-4 py-3">
                             <select
@@ -874,7 +904,17 @@ export default function AdminOrdersPage() {
                                 className="rounded-lg border border-sky-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-sky-50"
                                 aria-expanded={expanded}
                               >
-                                {expanded ? "Hide details" : "View details"}
+                                <span className="inline-flex items-center gap-1">
+                                  <span
+                                    aria-hidden={true}
+                                    className={`inline-block transition-transform duration-200 ${
+                                      expanded ? "rotate-90" : "rotate-0"
+                                    }`}
+                                  >
+                                    ▶
+                                  </span>
+                                  {expanded ? "Hide details" : "View details"}
+                                </span>
                               </button>
 
                               <button
@@ -905,7 +945,7 @@ export default function AdminOrdersPage() {
                                       Order ID: {order.id}
                                     </p>
                                     <p className="text-sm text-slate-600">
-                                      Total: ₱{Number(order.total_price).toFixed(2)}
+                                      Total: ₱{formatCurrency(order.total_price)}
                                     </p>
                                   </div>
 
@@ -1089,6 +1129,110 @@ export default function AdminOrdersPage() {
                 </div>
             </div>
           )}
+
+          {archivedOrders.length > 0 ? (
+            <details className="mt-6 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 [&[open]_.archived-arrow]:rotate-90">
+              <summary className="cursor-pointer list-none text-sm font-semibold text-slate-800">
+                <span className="inline-flex items-center gap-2">
+                  <span
+                    aria-hidden={true}
+                    className="archived-arrow inline-block transition-transform duration-200"
+                  >
+                    ▶
+                  </span>
+                  Archived Orders (Delivered/Cancelled): {archivedOrders.length}
+                </span>
+              </summary>
+              <p className="mt-2 text-xs text-slate-600">
+                Open each dropdown if you want to see the full details.
+              </p>
+              <div className="mt-4 space-y-3">
+                {archivedOrders.map((order) => (
+                  <details
+                    key={`archived-${order.id}`}
+                    className="rounded-xl border border-slate-200 bg-white p-3 [&[open]_.archived-item-arrow]:rotate-90"
+                  >
+                    <summary className="cursor-pointer list-none">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
+                          <span
+                            aria-hidden={true}
+                            className="archived-item-arrow inline-block transition-transform duration-200"
+                          >
+                            ▶
+                          </span>
+                          {order.customer_name ?? "-"}
+                        </p>
+                        <span className="inline-flex items-center rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">
+                          {getAdminStatusValue(order.status)}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-600">
+                        {new Date(order.created_at).toLocaleString()} • ₱
+                        {formatCurrency(order.total_price)}
+                      </p>
+                    </summary>
+
+                    <div className="mt-3 space-y-3 rounded-lg border border-slate-100 bg-slate-50/60 p-3">
+                      <div className="grid gap-2 text-xs text-slate-700 sm:grid-cols-2">
+                        <p>
+                          <span className="font-semibold text-slate-800">Order ID:</span> {order.id}
+                        </p>
+                        <p>
+                          <span className="font-semibold text-slate-800">Contact:</span>{" "}
+                          {order.contact_number ?? "-"}
+                        </p>
+                        <p className="sm:col-span-2">
+                          <span className="font-semibold text-slate-800">Address:</span>{" "}
+                          {order.address ?? "-"}
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
+                          Bottles
+                        </p>
+                        {order.bottle_items.length === 0 ? (
+                          <p className="text-sm text-slate-600">None</p>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {order.bottle_items.map((it) => (
+                              <span
+                                key={`archived-bottle-${order.id}-${it.name}-${it.size}-${it.pack}`}
+                                className="inline-flex items-center rounded-full border border-sky-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-700"
+                              >
+                                {it.name} x{it.qty} • {it.size}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                          Cases
+                        </p>
+                        {order.case_items.length === 0 ? (
+                          <p className="text-sm text-slate-600">None</p>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {order.case_items.map((it) => (
+                              <span
+                                key={`archived-case-${order.id}-${it.name}-${it.size}-${it.pack}`}
+                                className="inline-flex items-center rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-700"
+                              >
+                                {it.name} x{it.qty} • {it.size}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </details>
+                ))}
+              </div>
+            </details>
+          ) : null}
         </section>
       </main>
     </div>

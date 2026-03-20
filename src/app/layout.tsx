@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { DisableZoom } from "@/components/disable-zoom";
 import { FlashToast } from "@/components/flash-toast";
 
 const geistSans = Geist({
@@ -37,6 +38,7 @@ export default function RootLayout({
       data-scroll-behavior="smooth"
     >
       <body className="min-h-full flex flex-col overflow-x-hidden">
+        <DisableZoom />
         <FlashToast />
         {children}
       </body>

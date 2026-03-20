@@ -714,14 +714,14 @@ export default function AdminLandingPage() {
         onLogoutClick={handleLogout}
       />
 
-      <main className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6">
-        <section className="rounded-3xl border border-sky-100 bg-white p-8 shadow-lg shadow-sky-500/10">
+      <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-16">
+        <section className="rounded-3xl border border-sky-100 bg-white p-5 shadow-lg shadow-sky-500/10 sm:p-8">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-xs uppercase tracking-wide text-sky-700">
                 Admin Panel
               </p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
+              <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
                 Sip Water Admin Landing Page
               </h1>
               <p className="mt-2 text-sm text-slate-600">
@@ -781,8 +781,8 @@ export default function AdminLandingPage() {
           </p>
         ) : null}
 
-        <section ref={addProductRef} className="mt-8 grid gap-6 lg:grid-cols-[1fr_1.2fr]">
-          <article className="rounded-3xl border border-sky-100 bg-white p-6 shadow-sm">
+        <section ref={addProductRef} className="mt-8 grid gap-6 xl:grid-cols-[1fr_1.2fr]">
+          <article className="min-w-0 rounded-3xl border border-sky-100 bg-white p-6 shadow-sm">
             <h2 className="text-lg font-semibold text-slate-900">Add Product</h2>
             <p className="mt-1 text-sm text-slate-600">
               Create a new catalog item for customer orders.
@@ -803,7 +803,7 @@ export default function AdminLandingPage() {
                     photoUrl: "",
                   })
                 }
-                className="h-10 w-full rounded-xl border border-sky-200 bg-sky-50/40 px-3 text-sm outline-none focus:ring-2 focus:ring-sky-400"
+                className="h-10 w-full min-w-0 rounded-xl border border-sky-200 bg-sky-50/40 px-3 text-sm outline-none focus:ring-2 focus:ring-sky-400"
                 required
               >
                 <option value="">Select category</option>
@@ -826,7 +826,7 @@ export default function AdminLandingPage() {
                     note: "",
                   }))
                 }
-                className="h-10 w-full rounded-xl border border-sky-200 bg-sky-50/40 px-3 text-sm outline-none focus:ring-2 focus:ring-sky-400"
+                className="h-10 w-full min-w-0 rounded-xl border border-sky-200 bg-sky-50/40 px-3 text-sm outline-none focus:ring-2 focus:ring-sky-400"
                 required
               >
                 <option value="">Select product name</option>
@@ -849,7 +849,7 @@ export default function AdminLandingPage() {
                       note: "",
                     }))
                   }
-                  className="h-10 w-full rounded-xl border border-sky-200 bg-sky-50/40 px-3 text-sm outline-none focus:ring-2 focus:ring-sky-400"
+                  className="h-10 w-full min-w-0 rounded-xl border border-sky-200 bg-sky-50/40 px-3 text-sm outline-none focus:ring-2 focus:ring-sky-400"
                   required
                 >
                   <option value="">Select size</option>
@@ -870,7 +870,7 @@ export default function AdminLandingPage() {
                       note: "",
                     }))
                   }
-                  className="h-10 w-full rounded-xl border border-sky-200 bg-sky-50/40 px-3 text-sm outline-none focus:ring-2 focus:ring-sky-400"
+                  className="h-10 w-full min-w-0 rounded-xl border border-sky-200 bg-sky-50/40 px-3 text-sm outline-none focus:ring-2 focus:ring-sky-400"
                   required
                 >
                   <option value="">Select pack</option>
@@ -892,7 +892,7 @@ export default function AdminLandingPage() {
                       note: "",
                     }))
                   }
-                  className="h-10 w-full rounded-xl border border-sky-200 bg-sky-50/40 px-3 text-sm outline-none focus:ring-2 focus:ring-sky-400"
+                  className="h-10 w-full min-w-0 rounded-xl border border-sky-200 bg-sky-50/40 px-3 text-sm outline-none focus:ring-2 focus:ring-sky-400"
                   required
                 >
                   <option value="">Select bottle price</option>
@@ -922,7 +922,7 @@ export default function AdminLandingPage() {
                       note: matched?.note ?? "",
                     }));
                   }}
-                  className="h-10 w-full rounded-xl border border-sky-200 bg-sky-50/40 px-3 text-sm outline-none focus:ring-2 focus:ring-sky-400"
+                  className="h-10 w-full min-w-0 rounded-xl border border-sky-200 bg-sky-50/40 px-3 text-sm outline-none focus:ring-2 focus:ring-sky-400"
                   required
                 >
                   <option value="">Select case price</option>
@@ -986,7 +986,7 @@ export default function AdminLandingPage() {
             </form>
           </article>
 
-          <article className="rounded-3xl border border-sky-100 bg-white p-6 shadow-sm">
+          <article className="min-w-0 rounded-3xl border border-sky-100 bg-white p-6 shadow-sm">
             <h2 className="text-lg font-semibold text-slate-900">Product List</h2>
             <p className="mt-1 text-sm text-slate-600">
               Current items from your `products` table.
