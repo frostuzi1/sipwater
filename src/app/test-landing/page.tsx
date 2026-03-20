@@ -29,11 +29,11 @@ type ProductGroup = {
 type CartItem = {
   key: string;
   productId: string;
-  category: string;
+  category?: string;
   name: string;
   size: string;
   pack: string;
-  photoUrl: string | null;
+  photoUrl?: string | null;
   unitType: "bottle" | "case";
   unitPrice: number;
   quantity: number;
@@ -81,9 +81,9 @@ const itemOrderMap = new Map<string, number>(
 );
 
 const formatPeso = (amount: number) => `₱${amount.toLocaleString()}`;
-const isKamanCategory = (category: string) =>
-  category.trim().toLowerCase() === "kaman";
-const getPrimaryUnitLabel = (category: string) =>
+const isKamanCategory = (category?: string) =>
+  (category ?? "").trim().toLowerCase() === "kaman";
+const getPrimaryUnitLabel = (category?: string) =>
   isKamanCategory(category) ? "Pack" : "Bottle";
 
 export default function TestLandingPage() {
