@@ -869,7 +869,7 @@ export default function Home() {
                     <dl className="mt-4 grid grid-cols-2 gap-3 text-xs text-slate-600">
                       <div className="space-y-1">
                         <dt className="text-[11px] uppercase tracking-wide text-sky-600">
-                          Bottle
+                          {group.category === "Kaman" ? "Pack" : "Bottle"}
                         </dt>
                         <dd className="font-semibold text-slate-800">
                           {p.bottlePrice}

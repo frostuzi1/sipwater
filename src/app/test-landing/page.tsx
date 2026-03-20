@@ -29,6 +29,7 @@ type ProductGroup = {
 type CartItem = {
   key: string;
   productId: string;
+  category: string;
   name: string;
   size: string;
   pack: string;
@@ -79,6 +80,10 @@ const itemOrderMap = new Map<string, number>(
 );
 
 const formatPeso = (amount: number) => `₱${amount.toLocaleString()}`;
+const isKamanCategory = (category: string) =>
+  category.trim().toLowerCase() === "kaman";
+const getPrimaryUnitLabel = (category: string) =>
+  isKamanCategory(category) ? "Pack" : "Bottle";
 
 export default function TestLandingPage() {
   const router = useRouter();
@@ -366,8 +371,10 @@ export default function TestLandingPage() {
   const addToCart = (item: ProductCard, unitType: "bottle" | "case") => {
     setOrderMessage(null);
     setOrderStatus("Draft");
+    const unitLabel =
+      unitType === "case" ? "case" : isKamanCategory(item.category) ? "pack" : "bottle";
     setAddOrderAlert(
-      `Added ${unitType === "bottle" ? "bottle" : "case"} to order.`
+      `Added ${unitLabel} to order.`
     );
     if (addOrderAlertTimeoutRef.current) {
       window.clearTimeout(addOrderAlertTimeoutRef.current);
@@ -388,6 +395,7 @@ export default function TestLandingPage() {
         {
           key,
           productId: item.id,
+          category: item.category,
           name: item.name,
           size: item.size,
           pack: item.pack,
@@ -608,7 +616,11 @@ export default function TestLandingPage() {
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-slate-800">{item.name}</p>
                         <p className="text-xs text-slate-500">
-                          {item.size} • {item.unitType === "bottle" ? "Bottle" : "Case"} •{" "}
+                          {item.size} •{" "}
+                          {item.unitType === "bottle"
+                            ? getPrimaryUnitLabel(item.category)
+                            : "Case"}{" "}
+                          •{" "}
                           {formatPeso(item.unitPrice)} each
                         </p>
                       </div>
@@ -715,7 +727,7 @@ export default function TestLandingPage() {
                       <dl className="mt-4 grid grid-cols-2 gap-3 text-xs text-slate-600">
                         <div className="space-y-1">
                           <dt className="text-[11px] uppercase tracking-wide text-sky-600">
-                            Bottle
+                            {getPrimaryUnitLabel(item.category)}
                           </dt>
                           <dd className="font-semibold text-slate-800">
                             {formatPeso(item.bottlePrice ?? 0)}
@@ -737,7 +749,7 @@ export default function TestLandingPage() {
                           onClick={() => addToCart(item, "bottle")}
                           className="inline-flex h-14 flex-1 items-center justify-center rounded-full bg-sky-500 px-6 text-base font-semibold text-white shadow-lg shadow-sky-500/30 hover:bg-sky-600 sm:h-10 sm:px-4 sm:text-xs"
                         >
-                          Add bottle
+                          Add {isKamanCategory(item.category) ? "pack" : "bottle"}
                         </button>
                         <button
                           type="button"
