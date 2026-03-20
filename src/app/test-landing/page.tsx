@@ -64,7 +64,7 @@ const itemOrderRows: [string, number][] = [
     "SIP Plus Electrolyte Drinks__Honey Yuzo Sugar Free Electrolytes__350 ml__12 / case",
     1,
   ],
-  ["Vida Zero Sparkling Drinks__Salt Lychee__325 ml__24 / case", 0],
+  ["Vida Zero Sparkling Drinks__Salty Lychee__325 ml__24 / case", 0],
   ["Vida Zero Sparkling Drinks__Original Citrus__325 ml__24 / case", 1],
   ["Vida Zero Sparkling Drinks__Lemon__325 ml__24 / case", 2],
   ["Yobick Yoghurt Drink__Original__310 ml__24 / case", 0],
@@ -79,38 +79,53 @@ const itemOrderRows: [string, number][] = [
 const itemOrderMap = new Map<string, number>(
   itemOrderRows.map(([key, index]) => [normalizeOrderKey(key), index])
 );
+const CLIENT_CATEGORY_LABELS = [
+  "Purified Water",
+  "Electrolyte Drinks",
+  "Sparkling Drinks",
+  "Yoghurt Drinks",
+  "Carbonated Drinks",
+  "Snacks",
+] as const;
 
-const formatPeso = (amount: number) => `₱${amount.toLocaleString()}`;
+const formatPeso = (amount: number) =>
+  `₱${Number(amount ?? 0).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 const isKamanCategory = (category?: string) =>
   (category ?? "").trim().toLowerCase() === "kaman";
 const getPrimaryUnitLabel = (category?: string) =>
   isKamanCategory(category) ? "Pack" : "Bottle";
-const formatPackLabel = (pack: string, category?: string) => {
-  const qty = String(pack).match(/\d+/)?.[0];
-  if (!qty) return pack;
-  return isKamanCategory(category) ? `${qty} packs/case` : `${qty} bottles/case`;
+const formatSizeLabel = (size: string) =>
+  size.replace(/\bml\b/gi, "mL").replace(/\bl\b/g, "L");
+const categoryToSlug = (category: string) =>
+  category.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+const getClientCategoryLabel = (sourceCategory: string, productName: string) => {
+  const category = sourceCategory.toLowerCase();
+  const name = productName.trim().toLowerCase();
+
+  if (category.includes("kaman") || name.includes("egg roll")) return "Snacks";
+  if (
+    category.includes("prebiotic") ||
+    name.includes("lemon lime prebiotic") ||
+    name.includes("yogurt soda prebiotic")
+  ) {
+    return "Carbonated Drinks";
+  }
+  if (category.includes("yobick") || category.includes("deedo")) return "Yoghurt Drinks";
+  if (category.includes("electrolyte")) return "Electrolyte Drinks";
+  if (category.includes("sparkling")) return "Sparkling Drinks";
+  if (category.includes("purified")) return "Purified Water";
+  return "Purified Water";
 };
 
 export default function TestLandingPage() {
   const router = useRouter();
   const [userId, setUserId] = useState<string | null>(null);
   const DISPLAY_NAME_CACHE_KEY = "sip_display_name";
-  const [displayName, setDisplayName] = useState<string | null>(() => {
-    if (typeof window === "undefined") return null;
-    try {
-      return window.localStorage.getItem(DISPLAY_NAME_CACHE_KEY);
-    } catch {
-      return null;
-    }
-  });
-  const [loading, setLoading] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
-    try {
-      return !window.localStorage.getItem(DISPLAY_NAME_CACHE_KEY);
-    } catch {
-      return true;
-    }
-  });
+  const [displayName, setDisplayName] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [productsLoading, setProductsLoading] = useState(true);
   const [productGroups, setProductGroups] = useState<ProductGroup[]>([]);
@@ -206,9 +221,14 @@ export default function TestLandingPage() {
           return {
             key: String(item.key ?? ""),
             productId: String(item.productId ?? ""),
+            category: String(item.category ?? ""),
             name: String(item.name ?? ""),
             size: String(item.size ?? ""),
             pack: String(item.pack ?? ""),
+            photoUrl:
+              typeof item.photoUrl === "string" && item.photoUrl.trim()
+                ? item.photoUrl
+                : null,
             unitType,
             unitPrice: Number(item.unitPrice ?? 0),
             quantity: Math.max(0, Number(item.quantity ?? 0)),
@@ -241,6 +261,36 @@ export default function TestLandingPage() {
     return () => {
       window.removeEventListener("scroll", onScroll);
     };
+  }, []);
+
+  useEffect(() => {
+    const openCatalogFromHash = () => {
+      if (!window.location.hash.startsWith("#client-category-")) return;
+      setActiveTab("catalog");
+      window.setTimeout(() => {
+        const section = document.getElementById(window.location.hash.slice(1));
+        if (section) {
+          section.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }, 0);
+    };
+
+    openCatalogFromHash();
+    window.addEventListener("hashchange", openCatalogFromHash);
+    return () => {
+      window.removeEventListener("hashchange", openCatalogFromHash);
+    };
+  }, []);
+
+  useEffect(() => {
+    try {
+      const cachedName = window.localStorage.getItem(DISPLAY_NAME_CACHE_KEY);
+      if (cachedName) {
+        setDisplayName(cachedName);
+      }
+    } catch {
+      // ignore localStorage errors
+    }
   }, []);
 
   useEffect(() => {
@@ -342,11 +392,12 @@ export default function TestLandingPage() {
         });
 
         const grouped = normalizedProducts.reduce<Record<string, ProductCard[]>>((acc, item) => {
-          const category = item.category ?? "Other Products";
-          if (!acc[category]) acc[category] = [];
-          acc[category].push({
+          const sourceCategory = item.category ?? "Other Products";
+          const displayCategory = getClientCategoryLabel(sourceCategory, item.name);
+          if (!acc[displayCategory]) acc[displayCategory] = [];
+          acc[displayCategory].push({
             id: item.id,
-            category,
+            category: sourceCategory,
             name: item.name,
             size: item.size,
             pack: item.pack,
@@ -358,7 +409,10 @@ export default function TestLandingPage() {
         }, {});
 
         setProductGroups(
-          Object.entries(grouped).map(([category, items]) => ({ category, items }))
+          CLIENT_CATEGORY_LABELS.map((category) => ({
+            category,
+            items: grouped[category] ?? [],
+          })).filter((group) => group.items.length > 0)
         );
       }
 
@@ -548,9 +602,16 @@ export default function TestLandingPage() {
       <Navbar
         hideAuthButtons
         homeHref="/home"
+        categoryLinks={(productGroups.length > 0
+          ? productGroups.map((group) => group.category)
+          : [...CLIENT_CATEGORY_LABELS]
+        ).map((category) => ({
+          label: category,
+          href: `/category/${categoryToSlug(category)}`,
+        }))}
         profileHref="/profile"
         orderHistoryHref="/orders"
-        userName={displayName ?? "User"}
+        userName={loading ? "User" : displayName ?? "User"}
         onHomeClick={handleHomeClick}
         onLogoutClick={handleLogout}
       />
@@ -573,7 +634,7 @@ export default function TestLandingPage() {
                   {addOrderAlert}
                 </p>
                 <p className="mt-0.5 text-xs text-white/80">
-                  Check your order status in “View Order”.
+                  Check your order status in “View Orders”.
                 </p>
               </div>
             </div>
@@ -628,7 +689,7 @@ export default function TestLandingPage() {
                   : "text-slate-600 hover:text-sky-600"
               }`}
             >
-              View Order
+              View Cart
             </button>
           </div>
 
@@ -636,9 +697,9 @@ export default function TestLandingPage() {
             <div className="space-y-4 rounded-3xl border border-sky-100 bg-white p-6 shadow-md shadow-sky-500/5 sm:mr-auto sm:max-w-4xl">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h3 className="text-lg font-semibold text-slate-800">Your order</h3>
+                  <h3 className="text-lg font-semibold text-slate-800">Your Cart</h3>
                   <p className="text-sm text-slate-600">
-                    Review selected products before you submit.
+                    Review selected products before you check out.
                   </p>
                 </div>
                 <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
@@ -673,7 +734,7 @@ export default function TestLandingPage() {
                             {item.category || "Product"}
                           </p>
                           <p className="text-sm font-semibold text-slate-800">{item.name}</p>
-                          <p className="text-xs text-slate-500">{item.size}</p>
+                          <p className="text-xs text-slate-500">{formatSizeLabel(item.size)}</p>
                           <p className="text-xs text-slate-500">
                             {item.unitType === "bottle"
                               ? getPrimaryUnitLabel(item.category)
@@ -734,98 +795,53 @@ export default function TestLandingPage() {
                 </p>
               ) : null}
             </div>
-          ) : productsLoading ? (
-            <p className="text-sm text-slate-600">Loading products...</p>
-          ) : productGroups.length === 0 ? (
-            <p className="rounded-xl border border-sky-100 bg-sky-50/60 px-3 py-2 text-sm text-slate-700">
-              No products available.
-            </p>
           ) : (
-            productGroups.map((group) => (
-              <div key={group.category} className="space-y-4">
-                <div className="flex items-center justify-between gap-4">
-                  <h3 className="text-lg font-semibold text-slate-800">{group.category}</h3>
-                </div>
-                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                  {group.items.map((item, index) => (
-                    <motion.article
-                      key={item.id + item.size + item.pack}
-                      className="group rounded-3xl border border-sky-100 bg-white p-6 shadow-md shadow-sky-500/5 transition hover:-translate-y-1 hover:border-sky-200 hover:shadow-lg hover:shadow-sky-500/10"
-                      initial={{ opacity: 0, y: 16 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true, margin: "-24px" }}
-                      transition={{ duration: 0.35, delay: index * 0.05 }}
-                    >
-                      {item.photoUrl ? (
-                        <img
-                          src={item.photoUrl}
-                          alt={`${item.name} product photo`}
-                          className="h-[24rem] w-full rounded-2xl border border-sky-100 object-[center_45%] object-cover"
-                        />
-                      ) : (
-                        <div className="flex items-center justify-between">
-                          <span className="inline-flex size-11 items-center justify-center rounded-2xl bg-sky-100 text-sky-600">
-                            <Droplets className="size-5" aria-hidden={true} />
-                          </span>
-                          <span className="text-xs font-medium text-slate-500">
-                            {formatPackLabel(item.pack, item.category)}
-                          </span>
-                        </div>
-                      )}
+            <>
+            <section className="relative overflow-hidden rounded-3xl border border-sky-100 bg-gradient-to-br from-cyan-50 via-sky-50 to-blue-100/60 p-6 shadow-lg shadow-sky-500/15 sm:p-8">
+              <div className="pointer-events-none absolute -top-20 -right-12 h-56 w-56 rounded-full bg-cyan-200/50 blur-3xl" />
+              <div className="pointer-events-none absolute -bottom-24 -left-14 h-64 w-64 rounded-full bg-blue-200/40 blur-3xl" />
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.65),transparent_42%),radial-gradient(circle_at_80%_70%,rgba(255,255,255,0.45),transparent_48%)]" />
 
-                      {item.photoUrl ? (
-                        <div className="mt-3 flex justify-end">
-                          <span className="text-xs font-medium text-slate-500">
-                            {formatPackLabel(item.pack, item.category)}
-                          </span>
-                        </div>
-                      ) : null}
-
-                      <h4 className="mt-4 text-base font-semibold text-slate-800">{item.name}</h4>
-                      <p className="mt-1 text-xs text-slate-500">{item.size}</p>
-
-                      <dl className="mt-4 grid grid-cols-2 gap-3 text-xs text-slate-600">
-                        <div className="space-y-1">
-                          <dt className="text-[11px] uppercase tracking-wide text-sky-600">
-                            {getPrimaryUnitLabel(item.category)}
-                          </dt>
-                          <dd className="font-semibold text-slate-800">
-                            {formatPeso(item.bottlePrice ?? 0)}
-                          </dd>
-                        </div>
-                        <div className="space-y-1">
-                          <dt className="text-[11px] uppercase tracking-wide text-sky-600">
-                            Case
-                          </dt>
-                          <dd className="font-semibold text-slate-800">
-                            {formatPeso(item.casePrice ?? 0)}
-                          </dd>
-                        </div>
-                      </dl>
-
-                      <div className="mt-6 flex items-center gap-3">
-                        <button
-                          type="button"
-                          onClick={() => addToCart(item, "bottle")}
-                          className="inline-flex h-14 flex-1 items-center justify-center rounded-full bg-sky-500 px-6 text-base font-semibold text-white shadow-lg shadow-sky-500/30 hover:bg-sky-600 sm:h-10 sm:px-4 sm:text-xs"
-                        >
-                          Add {isKamanCategory(item.category) ? "pack" : "bottle"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => addToCart(item, "case")}
-                          className="inline-flex h-14 flex-1 items-center justify-center rounded-full border-2 border-sky-200 bg-white px-6 text-base font-semibold text-sky-600 hover:bg-sky-50 sm:h-10 sm:px-4 sm:text-xs"
-                        >
-                          Add case
-                        </button>
-                      </div>
-                    </motion.article>
-                  ))}
-                </div>
+              <div className="relative">
+                <span className="inline-flex items-center gap-2 rounded-full border border-cyan-200 bg-white/85 px-3 py-1 text-xs font-semibold text-cyan-700 shadow-sm">
+                  <Droplets className="size-3.5" aria-hidden={true} />
+                  Sip Water
+                </span>
+                <h3 className="mt-4 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
+                  Welcome to your hydration hub
+                </h3>
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-700 sm:text-base">
+                  Discover premium drinks and snacks curated for fast ordering. Use the
+                  category links in the navbar to explore each collection.
+                </p>
               </div>
-            ))
+
+              <div className="relative mt-6 flex flex-wrap gap-2">
+                {(productGroups.length > 0 ? productGroups.map((group) => group.category) : [
+                  ...CLIENT_CATEGORY_LABELS,
+                ]).map((category) => (
+                  <a
+                    id={`client-category-${categoryToSlug(category)}`}
+                    key={category}
+                    href={`/category/${categoryToSlug(category)}`}
+                    className="rounded-full border border-cyan-200 bg-white/85 px-4 py-2 text-xs font-semibold text-cyan-700 shadow-sm transition hover:-translate-y-0.5 hover:border-cyan-300 hover:bg-white"
+                  >
+                    {category}
+                  </a>
+                ))}
+              </div>
+            </section>
+            {productsLoading ? (
+              <p className="text-sm text-slate-600">Loading products...</p>
+            ) : productGroups.length === 0 ? (
+              <p className="rounded-xl border border-sky-100 bg-sky-50/60 px-3 py-2 text-sm text-slate-700">
+                No products available.
+              </p>
+            ) : null}
+            </>
           )}
         </motion.section>
+
       </main>
 
       {showBackToTop ? (

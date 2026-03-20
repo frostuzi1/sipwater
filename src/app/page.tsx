@@ -1,8 +1,7 @@
  "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import { BadgeCheck, Droplets, Leaf, ShieldCheck, Truck } from "lucide-react";
 
@@ -100,7 +99,7 @@ const fallbackProductGroups: ProductGroup[] = [
     category: "Vida Zero Sparkling Drinks",
     items: [
       {
-        name: "Salt Lychee",
+        name: "Salty Lychee",
         size: "325 ml",
         pack: "24 / case",
         bottlePrice: "₱42",
@@ -221,7 +220,62 @@ const getIconForCategory = (category: string) => {
   return <Droplets className="size-5" aria-hidden={true} />;
 };
 
-const formatPeso = (amount: number) => `₱${amount.toLocaleString()}`;
+const LANDING_CATEGORY_NAV = [
+  "Purified Water",
+  "Electrolyte Drinks",
+  "Sparkling Drinks",
+  "Yoghurt Drinks",
+  "Carbonated Drinks",
+  "Snacks",
+] as const;
+
+const normalizeName = (value: string) => value.trim().toLowerCase();
+
+const getLandingCategoryLabel = (sourceCategory: string, productName: string) => {
+  const category = sourceCategory.toLowerCase();
+  const name = normalizeName(productName);
+
+  if (category.includes("kaman") || name.includes("egg roll")) return "Snacks";
+  if (
+    category.includes("prebiotic") ||
+    name.includes("lemon lime prebiotic") ||
+    name.includes("yogurt soda prebiotic")
+  ) {
+    return "Carbonated Drinks";
+  }
+  if (category.includes("yobick") || category.includes("deedo")) return "Yoghurt Drinks";
+  if (category.includes("electrolyte")) return "Electrolyte Drinks";
+  if (category.includes("sparkling")) return "Sparkling Drinks";
+  if (category.includes("purified")) return "Purified Water";
+  return "Purified Water";
+};
+
+const reshapeCatalogGroups = (groups: ProductGroup[]): ProductGroup[] => {
+  const grouped: Record<string, Product[]> = {};
+  for (const label of LANDING_CATEGORY_NAV) grouped[label] = [];
+
+  for (const group of groups) {
+    for (const item of group.items) {
+      const target = getLandingCategoryLabel(group.category, item.name);
+      grouped[target].push(item);
+    }
+  }
+
+  return LANDING_CATEGORY_NAV.map((category) => ({
+    category,
+    items: grouped[category] ?? [],
+  })).filter((group) => group.items.length > 0);
+};
+const categoryToSlug = (category: string) =>
+  category.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+const categoryToAnchorId = (category: string) =>
+  `landing-category-${category.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+
+const formatPeso = (amount: number) =>
+  `₱${Number(amount ?? 0).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 const parsePeso = (value: string) => Number(value.replace(/[^\d.]/g, "")) || 0;
 const formatPackLabel = (pack: string, category: string) => {
   const qty = String(pack).match(/\d+/)?.[0];
@@ -244,6 +298,7 @@ const landingItemOrderMap: Map<string, number> = new Map(
 
 export default function Home() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [authMode, setAuthMode] = useState<"login" | "signup" | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -259,8 +314,9 @@ export default function Home() {
     contactNumber: "",
     address: "",
   });
-  const [catalogGroups, setCatalogGroups] =
-    useState<ProductGroup[]>(fallbackProductGroups);
+  const [catalogGroups, setCatalogGroups] = useState<ProductGroup[]>(
+    reshapeCatalogGroups(fallbackProductGroups)
+  );
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [showBackToTop, setShowBackToTop] = useState(false);
@@ -276,12 +332,23 @@ export default function Home() {
       const user = session?.user;
 
       if (user) {
-        router.replace(isAdminEmail(user.email) ? "/admin" : "/home");
+        router.replace(isAdminEmail(user.email) ? "/admin" : "/category/purified-water");
       }
     };
 
     void redirectIfAuthenticated();
   }, [router]);
+
+  useEffect(() => {
+    const authModeParam = searchParams.get("auth");
+    if (authModeParam === "login") {
+      openAuth("login");
+      return;
+    }
+    if (authModeParam === "signup") {
+      openAuth("signup");
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const supabase = getSupabaseClient();
@@ -356,7 +423,7 @@ export default function Home() {
         items,
       }));
 
-      setCatalogGroups(groups);
+      setCatalogGroups(reshapeCatalogGroups(groups));
       setCatalogError(null);
       setCatalogLoading(false);
     };
@@ -521,7 +588,7 @@ export default function Home() {
     setFlashMessage("Logged in successfully.");
     setLoadingAuth(false);
     closeAuth();
-    router.push(isAdminEmail(data.user?.email) ? "/admin" : "/home");
+    router.push(isAdminEmail(data.user?.email) ? "/admin" : "/category/purified-water");
   };
 
   const handleSignupSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -586,7 +653,7 @@ export default function Home() {
     if (data.session) {
       setAuthSuccess("Sign up successful.");
       closeAuth();
-      router.push(isAdminEmail(data.user?.email) ? "/admin" : "/home");
+      router.push(isAdminEmail(data.user?.email) ? "/admin" : "/category/purified-water");
       return;
     }
 
@@ -634,6 +701,10 @@ export default function Home() {
       <Navbar
         onLoginClick={() => openAuth("login")}
         onSignupClick={() => openAuth("signup")}
+        categoryLinks={catalogGroups.map((group) => ({
+          label: group.category,
+          href: `/category/${categoryToSlug(group.category)}`,
+        }))}
       />
 
       <main className="relative mx-auto w-full max-w-6xl px-4 pt-8 pb-16 sm:px-6">
@@ -822,128 +893,6 @@ export default function Home() {
               </div>
             </div>
           </div>
-        </motion.section>
-
-        <motion.section
-          id="products"
-          className="mt-20 space-y-10 scroll-mt-24"
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true, margin: "-80px" }}
-          transition={{ duration: 0.5 }}
-        >
-          <div className="flex items-end justify-between gap-6">
-            <div>
-              <h2 className="text-2xl font-semibold tracking-tight text-slate-800">
-                Product catalog
-              </h2>
-              <p className="mt-2 max-w-2xl text-sm text-slate-600">
-                All SIP Water products, from purified drinking water to
-                functional sparkling, yoghurt drinks, and more.
-              </p>
-            </div>
-          </div>
-
-          {catalogError ? (
-            <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-              {catalogError}
-            </p>
-          ) : null}
-
-          {catalogLoading ? (
-            <p className="text-sm text-slate-600">Loading products...</p>
-          ) : catalogGroups.length === 0 ? (
-            <p className="rounded-xl border border-sky-100 bg-sky-50/60 px-3 py-2 text-sm text-slate-700">
-              No products available yet. Add products from the admin panel.
-            </p>
-          ) : (
-            catalogGroups.map((group) => (
-            <div key={group.category} className="space-y-4">
-              <div className="flex items-center justify-between gap-4">
-                <h3 className="text-lg font-semibold text-slate-800">
-                  {group.category}
-                </h3>
-              </div>
-              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                {group.items.map((p, i) => (
-                  <motion.article
-                    key={`${group.category}-${p.name}-${p.size}`}
-                    className="group rounded-3xl border border-sky-100 bg-white p-6 shadow-md shadow-sky-500/5 transition hover:-translate-y-1 hover:border-sky-200 hover:shadow-lg hover:shadow-sky-500/10"
-                    initial={{ opacity: 0, y: 16 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true, margin: "-24px" }}
-                    transition={{ duration: 0.35, delay: i * 0.05 }}
-                  >
-                    {p.photoUrl ? (
-                      <img
-                        src={p.photoUrl}
-                        alt={`${p.name} product photo`}
-                        className="h-[24rem] w-full rounded-2xl border border-sky-100 object-[center_45%] object-cover"
-                      />
-                    ) : (
-                      <div className="flex items-center justify-between">
-                        <span className="inline-flex size-11 items-center justify-center rounded-2xl bg-sky-100 text-sky-600">
-                          {p.icon}
-                        </span>
-                        <span className="text-xs font-medium text-slate-500">
-                          {formatPackLabel(p.pack, group.category)}
-                        </span>
-                      </div>
-                    )}
-
-                    {p.photoUrl ? (
-                      <div className="mt-3 flex justify-end">
-                        <span className="text-xs font-medium text-slate-500">
-                          {formatPackLabel(p.pack, group.category)}
-                        </span>
-                      </div>
-                    ) : null}
-
-                    <h4 className="mt-4 text-base font-semibold text-slate-800">
-                      {p.name}
-                    </h4>
-                    <p className="mt-1 text-xs text-slate-500">{p.size}</p>
-
-                    <dl className="mt-4 grid grid-cols-2 gap-3 text-xs text-slate-600">
-                      <div className="space-y-1">
-                        <dt className="text-[11px] uppercase tracking-wide text-sky-600">
-                          {group.category === "Kaman" ? "Pack" : "Bottle"}
-                        </dt>
-                        <dd className="font-semibold text-slate-800">
-                          {p.bottlePrice}
-                        </dd>
-                      </div>
-                      <div className="space-y-1">
-                        <dt className="text-[11px] uppercase tracking-wide text-sky-600">
-                          Case
-                        </dt>
-                        <dd className="font-semibold text-slate-800">
-                          {p.casePrice}
-                        </dd>
-                      </div>
-                    </dl>
-
-                    {p.note ? (
-                      <p className="mt-2 text-[11px] text-slate-500">
-                        {p.note}
-                      </p>
-                    ) : null}
-
-                    <div className="mt-6 flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={handleAddToOrder}
-                        className="inline-flex h-10 flex-1 items-center justify-center rounded-full bg-sky-500 px-4 text-xs font-semibold text-white shadow-lg shadow-sky-500/30 hover:bg-sky-600"
-                      >
-                        Add to order
-                      </button>
-                    </div>
-                  </motion.article>
-                ))}
-              </div>
-            </div>
-            ))
-          )}
         </motion.section>
 
         <Dialog
@@ -1188,6 +1137,39 @@ export default function Home() {
             </div>
           </DialogContent>
         </Dialog>
+
+        <section className="relative mt-10 overflow-hidden rounded-3xl border border-sky-100 bg-gradient-to-br from-cyan-50 via-sky-50 to-blue-100/60 p-6 shadow-lg shadow-sky-500/15 sm:p-8">
+          <div className="pointer-events-none absolute -top-20 -right-12 h-56 w-56 rounded-full bg-cyan-200/50 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-24 -left-14 h-64 w-64 rounded-full bg-blue-200/40 blur-3xl" />
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.65),transparent_42%),radial-gradient(circle_at_80%_70%,rgba(255,255,255,0.45),transparent_48%)]" />
+
+          <div className="relative">
+            <span className="inline-flex items-center gap-2 rounded-full border border-cyan-200 bg-white/85 px-3 py-1 text-xs font-semibold text-cyan-700 shadow-sm">
+              <Droplets className="size-3.5" aria-hidden={true} />
+              Sip Water
+            </span>
+            <h2 className="mt-4 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
+              Welcome to your hydration hub
+            </h2>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-700 sm:text-base">
+              Discover premium drinks and snacks curated for fast ordering. Sign up or log in
+              to explore each category and place your order.
+            </p>
+          </div>
+
+          <div className="relative mt-6 flex flex-wrap gap-2">
+            {LANDING_CATEGORY_NAV.map((label) => (
+              <button
+                type="button"
+                key={label}
+                onClick={() => router.push(`/category/${categoryToSlug(label)}`)}
+                className="rounded-full border border-cyan-200 bg-white/85 px-4 py-2 text-xs font-semibold text-cyan-700 shadow-sm transition hover:-translate-y-0.5 hover:border-cyan-300 hover:bg-white"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </section>
       </main>
 
       {showBackToTop ? (

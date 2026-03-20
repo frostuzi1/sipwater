@@ -23,7 +23,28 @@ type AdminOrderRow = {
   case_items: Array<{ name: string; size: string; pack: string; qty: number }>;
 };
 
-const STATUS_OPTIONS = ["pending", "on the way", "delivered", "cancelled"] as const;
+const STATUS_OPTIONS = [
+  "Preparing your order",
+  "Out for delivery",
+  "Delivered",
+  "Cancelled",
+] as const;
+const getAdminStatusValue = (status: string | null | undefined) => {
+  const normalized = (status ?? "").trim().toLowerCase();
+  if (normalized === "pending" || normalized === "preparing your order") {
+    return "Preparing your order";
+  }
+  if (normalized === "on the way" || normalized === "out for delivery") {
+    return "Out for delivery";
+  }
+  if (normalized === "delivered") {
+    return "Delivered";
+  }
+  if (normalized === "cancelled") {
+    return "Cancelled";
+  }
+  return "Preparing your order";
+};
 const isDeliveredStatus = (status: string | null | undefined) =>
   (status ?? "").toLowerCase() === "delivered";
 
@@ -559,7 +580,7 @@ export default function AdminOrdersPage() {
                           Status
                         </p>
                         <select
-                          value={(order.status ?? "").toLowerCase()}
+                          value={getAdminStatusValue(order.status)}
                           onChange={(event) =>
                             void handleUpdateStatus(order.id, event.target.value)
                           }
@@ -568,10 +589,7 @@ export default function AdminOrdersPage() {
                         >
                           {STATUS_OPTIONS.map((status) => (
                             <option key={status} value={status}>
-                              {status === "on the way"
-                                ? "On the way"
-                                : status.charAt(0).toUpperCase() +
-                                  status.slice(1)}
+                              {status}
                             </option>
                           ))}
                         </select>
@@ -823,7 +841,7 @@ export default function AdminOrdersPage() {
                           </td>
                           <td className="px-4 py-3">
                             <select
-                              value={(order.status ?? "").toLowerCase()}
+                              value={getAdminStatusValue(order.status)}
                               onChange={(event) =>
                                 void handleUpdateStatus(order.id, event.target.value)
                               }
@@ -832,10 +850,7 @@ export default function AdminOrdersPage() {
                             >
                               {STATUS_OPTIONS.map((status) => (
                                 <option key={status} value={status}>
-                                  {status === "on the way"
-                                    ? "On the way"
-                                    : status.charAt(0).toUpperCase() +
-                                      status.slice(1)}
+                                  {status}
                                 </option>
                               ))}
                             </select>

@@ -52,7 +52,7 @@ const landingCatalog = [
   },
   {
     category: "Vida Zero Sparkling Drinks",
-    name: "Salt Lychee",
+    name: "Salty Lychee",
     size: "325 ml",
     pack: "24 / case",
     bottlePrice: "42",

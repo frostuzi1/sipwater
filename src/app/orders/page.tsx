@@ -7,6 +7,17 @@ import { Navbar } from "@/components/navbar";
 import { setFlashMessage } from "@/lib/flash-message";
 import { getSupabaseClient } from "@/lib/supabase";
 
+const CLIENT_CATEGORY_LABELS = [
+  "Purified Water",
+  "Electrolyte Drinks",
+  "Sparkling Drinks",
+  "Yoghurt Drinks",
+  "Carbonated Drinks",
+  "Snacks",
+] as const;
+const categoryToSlug = (category: string) =>
+  category.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+
 type OrderItem = {
   product_id?: string | null;
   unit_type?: string | null;
@@ -51,11 +62,28 @@ export default function OrdersPage() {
     const normalized = (status ?? "").trim();
     if (!normalized) return "";
     const lower = normalized.toLowerCase();
+    if (lower === "pending" || lower === "preparing your order") {
+      return "Preparing your order";
+    }
+    if (lower === "on the way" || lower === "out for delivery") {
+      return "Out for delivery";
+    }
+    if (lower === "delivered") {
+      return "Delivered";
+    }
+    if (lower === "cancelled") {
+      return "Cancelled";
+    }
     return lower.charAt(0).toUpperCase() + lower.slice(1);
   };
 
   const formatItemSize = (size: string) =>
     size.replace(/\bml\b/gi, "mL").replace(/\bl\b/g, "L");
+  const formatCurrency = (amount: number) =>
+    Number(amount ?? 0).toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
 
   useEffect(() => {
     let isMounted = true;
@@ -310,7 +338,7 @@ export default function OrdersPage() {
                             Total
                           </p>
                           <p className="text-sm font-semibold text-slate-900">
-                            ₱{Number(order.total_price).toFixed(2)}
+                            ₱{formatCurrency(order.total_price)}
                           </p>
                         </div>
                         <div>
@@ -346,7 +374,7 @@ export default function OrdersPage() {
                             </p>
                             <p className="text-sm text-slate-600">Order ID: {order.id}</p>
                             <p className="text-sm text-slate-600">
-                              Total: ₱{Number(order.total_price).toFixed(2)}
+                              Total: ₱{formatCurrency(order.total_price)}
                             </p>
                           </div>
                           <div className="flex flex-wrap items-center gap-2">
@@ -455,7 +483,7 @@ export default function OrdersPage() {
                             {new Date(order.created_at).toLocaleString()}
                           </td>
                           <td className="px-4 py-3 text-slate-800">
-                            ₱{Number(order.total_price).toFixed(2)}
+                            ₱{formatCurrency(order.total_price)}
                           </td>
                           <td className="px-4 py-3 text-sky-700">
                             {formatStatus(order.status)}
@@ -490,7 +518,7 @@ export default function OrdersPage() {
                                       Order ID: {order.id}
                                     </p>
                                     <p className="text-sm text-slate-600">
-                                      Total: ₱{Number(order.total_price).toFixed(2)}
+                                      Total: ₱{formatCurrency(order.total_price)}
                                     </p>
                                   </div>
 
