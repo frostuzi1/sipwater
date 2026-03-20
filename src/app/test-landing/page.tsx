@@ -33,6 +33,7 @@ type CartItem = {
   name: string;
   size: string;
   pack: string;
+  photoUrl: string | null;
   unitType: "bottle" | "case";
   unitPrice: number;
   quantity: number;
@@ -399,6 +400,7 @@ export default function TestLandingPage() {
           name: item.name,
           size: item.size,
           pack: item.pack,
+          photoUrl: item.photoUrl,
           unitType,
           unitPrice: unitType === "bottle" ? item.bottlePrice : item.casePrice,
           quantity: 1,
@@ -613,16 +615,28 @@ export default function TestLandingPage() {
                       key={item.key}
                       className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sky-100 bg-sky-50/30 p-3"
                     >
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-slate-800">{item.name}</p>
-                        <p className="text-xs text-slate-500">
-                          {item.size} •{" "}
-                          {item.unitType === "bottle"
-                            ? getPrimaryUnitLabel(item.category)
-                            : "Case"}{" "}
-                          •{" "}
-                          {formatPeso(item.unitPrice)} each
-                        </p>
+                      <div className="flex min-w-0 items-center gap-3">
+                        {item.photoUrl ? (
+                          <img
+                            src={item.photoUrl}
+                            alt={`${item.name} product photo`}
+                            className="h-14 w-14 shrink-0 rounded-xl border border-sky-100 object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-sky-100 bg-white text-sky-600">
+                            <Droplets className="size-5" aria-hidden={true} />
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-slate-800">{item.name}</p>
+                          <p className="text-xs text-slate-500">{item.size}</p>
+                          <p className="text-xs text-slate-500">
+                            {item.unitType === "bottle"
+                              ? getPrimaryUnitLabel(item.category)
+                              : "Case"}{" "}
+                            • {formatPeso(item.unitPrice)} each
+                          </p>
+                        </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <button
