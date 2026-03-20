@@ -1,7 +1,7 @@
  "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import { BadgeCheck, Droplets, Leaf, ShieldCheck, Truck } from "lucide-react";
 
@@ -298,7 +298,6 @@ const landingItemOrderMap: Map<string, number> = new Map(
 
 export default function Home() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [authMode, setAuthMode] = useState<"login" | "signup" | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -340,7 +339,7 @@ export default function Home() {
   }, [router]);
 
   useEffect(() => {
-    const authModeParam = searchParams.get("auth");
+    const authModeParam = new URLSearchParams(window.location.search).get("auth");
     if (authModeParam === "login") {
       openAuth("login");
       return;
@@ -348,7 +347,7 @@ export default function Home() {
     if (authModeParam === "signup") {
       openAuth("signup");
     }
-  }, [searchParams]);
+  }, []);
 
   useEffect(() => {
     const supabase = getSupabaseClient();
