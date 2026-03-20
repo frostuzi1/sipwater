@@ -223,6 +223,11 @@ const getIconForCategory = (category: string) => {
 
 const formatPeso = (amount: number) => `₱${amount.toLocaleString()}`;
 const parsePeso = (value: string) => Number(value.replace(/[^\d.]/g, "")) || 0;
+const formatPackLabel = (pack: string, category: string) => {
+  const qty = String(pack).match(/\d+/)?.[0];
+  if (!qty) return pack;
+  return category === "Kaman" ? `${qty} packs/case` : `${qty} bottles/case`;
+};
 
 const landingCategoryOrderMap: Map<string, number> = new Map(
   fallbackProductGroups.map((group, index) => [group.category, index] as const)
@@ -258,6 +263,7 @@ export default function Home() {
     useState<ProductGroup[]>(fallbackProductGroups);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [showBackToTop, setShowBackToTop] = useState(false);
 
   useEffect(() => {
     const redirectIfAuthenticated = async () => {
@@ -270,7 +276,7 @@ export default function Home() {
       const user = session?.user;
 
       if (user) {
-        router.replace(isAdminEmail(user.email) ? "/admin" : "/test-landing");
+        router.replace(isAdminEmail(user.email) ? "/admin" : "/home");
       }
     };
 
@@ -370,6 +376,17 @@ export default function Home() {
 
     return () => {
       supabase.removeChannel(channel);
+    };
+  }, []);
+
+  useEffect(() => {
+    const onScroll = () => {
+      setShowBackToTop(window.scrollY > 280);
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
     };
   }, []);
 
@@ -504,7 +521,7 @@ export default function Home() {
     setFlashMessage("Logged in successfully.");
     setLoadingAuth(false);
     closeAuth();
-    router.push(isAdminEmail(data.user?.email) ? "/admin" : "/test-landing");
+    router.push(isAdminEmail(data.user?.email) ? "/admin" : "/home");
   };
 
   const handleSignupSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -569,9 +586,7 @@ export default function Home() {
     if (data.session) {
       setAuthSuccess("Sign up successful.");
       closeAuth();
-      router.push(
-        isAdminEmail(data.user?.email) ? "/admin" : "/test-landing"
-      );
+      router.push(isAdminEmail(data.user?.email) ? "/admin" : "/home");
       return;
     }
 
@@ -586,6 +601,27 @@ export default function Home() {
     if (section) {
       section.scrollIntoView({ behavior: "smooth", block: "start" });
     }
+  };
+
+  const animateBackToTop = () => {
+    const startY = window.scrollY;
+    if (startY <= 0) return;
+    const duration = 650;
+    const startTime = performance.now();
+    const easeInOutCubic = (t: number) =>
+      t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+    const step = (now: number) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = easeInOutCubic(progress);
+      window.scrollTo(0, Math.round(startY * (1 - eased)));
+      if (progress < 1) {
+        window.requestAnimationFrame(step);
+      }
+    };
+
+    window.requestAnimationFrame(step);
   };
 
   const handleAddToOrder = () => {
@@ -850,14 +886,16 @@ export default function Home() {
                           {p.icon}
                         </span>
                         <span className="text-xs font-medium text-slate-500">
-                          {p.pack}
+                          {formatPackLabel(p.pack, group.category)}
                         </span>
                       </div>
                     )}
 
                     {p.photoUrl ? (
                       <div className="mt-3 flex justify-end">
-                        <span className="text-xs font-medium text-slate-500">{p.pack}</span>
+                        <span className="text-xs font-medium text-slate-500">
+                          {formatPackLabel(p.pack, group.category)}
+                        </span>
                       </div>
                     ) : null}
 
@@ -1151,6 +1189,20 @@ export default function Home() {
           </DialogContent>
         </Dialog>
       </main>
+
+      {showBackToTop ? (
+        <motion.button
+          type="button"
+          onClick={animateBackToTop}
+          whileHover={{ y: -2 }}
+          whileTap={{ scale: 0.88, rotate: -12 }}
+          transition={{ type: "spring", stiffness: 420, damping: 20 }}
+          className="fixed bottom-5 right-5 z-50 inline-flex h-12 w-12 items-center justify-center rounded-full bg-sky-500 text-xl font-bold text-white shadow-lg shadow-sky-500/30 transition hover:bg-sky-600 sm:bottom-6 sm:right-6"
+          aria-label="Back to top"
+        >
+          ↑
+        </motion.button>
+      ) : null}
     </div>
   );
 }

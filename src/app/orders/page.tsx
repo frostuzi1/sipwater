@@ -8,10 +8,12 @@ import { setFlashMessage } from "@/lib/flash-message";
 import { getSupabaseClient } from "@/lib/supabase";
 
 type OrderItem = {
+  product_id?: string | null;
   unit_type?: string | null;
   name?: string | null;
   size?: string | null;
   pack?: string | null;
+  unit_price?: number | string | null;
   quantity?: number | null;
 };
 
@@ -22,8 +24,20 @@ type OrderRow = {
   status: string;
   bottle_quantity: number;
   case_quantity: number;
-  bottle_items: Array<{ name: string; size: string; qty: number }>;
-  case_items: Array<{ name: string; size: string; qty: number }>;
+  bottle_items: Array<{
+    name: string;
+    size: string;
+    qty: number;
+    unit_price: number;
+    photo_url: string | null;
+  }>;
+  case_items: Array<{
+    name: string;
+    size: string;
+    qty: number;
+    unit_price: number;
+    photo_url: string | null;
+  }>;
 };
 
 export default function OrdersPage() {
@@ -39,6 +53,9 @@ export default function OrdersPage() {
     const lower = normalized.toLowerCase();
     return lower.charAt(0).toUpperCase() + lower.slice(1);
   };
+
+  const formatItemSize = (size: string) =>
+    size.replace(/\bml\b/gi, "mL").replace(/\bl\b/g, "L");
 
   useEffect(() => {
     let isMounted = true;
@@ -81,6 +98,31 @@ export default function OrdersPage() {
 
         const rows = (data ?? []) as Array<OrderRow & { items?: OrderItem[] | null }>;
 
+        const productIds = Array.from(
+          new Set(
+            rows.flatMap((order) =>
+              (Array.isArray(order.items) ? order.items : [])
+                .map((it) => String(it.product_id ?? "").trim())
+                .filter((id) => id.length > 0)
+            )
+          )
+        );
+
+        const productPhotoById = new Map<string, string | null>();
+        if (productIds.length > 0) {
+          const { data: productRows } = await supabase
+            .from("products")
+            .select("id, photo_url")
+            .in("id", productIds);
+
+          for (const row of (productRows ?? []) as Array<{
+            id: string;
+            photo_url: string | null;
+          }>) {
+            productPhotoById.set(String(row.id), row.photo_url ?? null);
+          }
+        }
+
         const mapped: OrderRow[] = rows.map((order: any) => {
           const items = Array.isArray(order.items)
             ? (order.items as OrderItem[])
@@ -91,7 +133,14 @@ export default function OrdersPage() {
 
           const byProduct: Record<
             string,
-            { unit_type: "bottle" | "case"; name: string; size: string; qty: number }
+            {
+              unit_type: "bottle" | "case";
+              name: string;
+              size: string;
+              qty: number;
+              unit_price: number;
+              photo_url: string | null;
+            }
           > = {};
 
           for (const it of items) {
@@ -99,6 +148,8 @@ export default function OrdersPage() {
             const qty = Number(it.quantity ?? 0);
             const name = String(it.name ?? "").trim();
             const size = String(it.size ?? "").trim();
+            const productId = String(it.product_id ?? "").trim();
+            const unitPrice = Number(it.unit_price ?? 0);
             if (!name || !unitTypeRaw || qty <= 0) continue;
 
             const mappedType =
@@ -114,19 +165,38 @@ export default function OrdersPage() {
 
             const key = `${name}__${mappedType}__${size}`;
             if (!byProduct[key])
-              byProduct[key] = { unit_type: mappedType, name, size, qty: 0 };
+              byProduct[key] = {
+                unit_type: mappedType,
+                name,
+                size,
+                qty: 0,
+                unit_price: Number.isFinite(unitPrice) ? unitPrice : 0,
+                photo_url: productPhotoById.get(productId) ?? null,
+              };
             byProduct[key].qty += qty;
           }
 
           const bottle_items = Object.values(byProduct)
             .filter((p) => p.unit_type === "bottle")
             .sort((a, b) => a.name.localeCompare(b.name))
-            .map((p) => ({ name: p.name, size: p.size, qty: p.qty }));
+            .map((p) => ({
+              name: p.name,
+              size: p.size,
+              qty: p.qty,
+              unit_price: p.unit_price,
+              photo_url: p.photo_url,
+            }));
 
           const case_items = Object.values(byProduct)
             .filter((p) => p.unit_type === "case")
             .sort((a, b) => a.name.localeCompare(b.name))
-            .map((p) => ({ name: p.name, size: p.size, qty: p.qty }));
+            .map((p) => ({
+              name: p.name,
+              size: p.size,
+              qty: p.qty,
+              unit_price: p.unit_price,
+              photo_url: p.photo_url,
+            }));
 
           return {
             id: String(order.id),
@@ -189,7 +259,7 @@ export default function OrdersPage() {
     <div className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-sky-50/50 text-slate-800">
       <Navbar
         hideAuthButtons
-        homeHref="/test-landing"
+        homeHref="/home"
         profileHref="/profile"
         orderHistoryHref="/orders"
         userName={displayName ?? "User"}
@@ -296,14 +366,29 @@ export default function OrdersPage() {
                             {order.bottle_items.length === 0 ? (
                               <p className="text-sm text-slate-600">None</p>
                             ) : (
-                              <div className="flex flex-wrap gap-2">
+                              <div className="space-y-2">
                                 {order.bottle_items.map((it) => (
-                                  <span
+                                  <div
                                     key={`m-bottle-${it.name}`}
-                                    className="inline-flex items-center rounded-full border border-sky-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-700"
+                                    className="flex items-center gap-2 rounded-xl border border-sky-200 bg-white px-2 py-2 text-xs font-medium text-slate-700"
                                   >
-                                    {it.name} x{it.qty} • {it.size}
-                                  </span>
+                                    {it.photo_url ? (
+                                      <img
+                                        src={it.photo_url}
+                                        alt={`${it.name} product`}
+                                        className="h-14 w-14 rounded-lg border border-sky-100 bg-white object-contain"
+                                      />
+                                    ) : null}
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-xs font-semibold text-slate-800">
+                                        {it.name} ({formatItemSize(it.size)})
+                                      </p>
+                                      <div className="mt-1 flex items-center justify-between gap-3 text-xs text-slate-700">
+                                        <span>₱{Number(it.unit_price ?? 0).toFixed(2)}/pc</span>
+                                        <span>Qty: {it.qty}</span>
+                                      </div>
+                                    </div>
+                                  </div>
                                 ))}
                               </div>
                             )}
@@ -315,14 +400,29 @@ export default function OrdersPage() {
                             {order.case_items.length === 0 ? (
                               <p className="text-sm text-slate-600">None</p>
                             ) : (
-                              <div className="flex flex-wrap gap-2">
+                              <div className="space-y-2">
                                 {order.case_items.map((it) => (
-                                  <span
+                                  <div
                                     key={`m-case-${it.name}`}
-                                    className="inline-flex items-center rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-700"
+                                    className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-2 py-2 text-xs font-medium text-slate-700"
                                   >
-                                    {it.name} x{it.qty} • {it.size}
-                                  </span>
+                                    {it.photo_url ? (
+                                      <img
+                                        src={it.photo_url}
+                                        alt={`${it.name} product`}
+                                        className="h-14 w-14 rounded-lg border border-emerald-100 bg-white object-contain"
+                                      />
+                                    ) : null}
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-xs font-semibold text-slate-800">
+                                        {it.name} ({formatItemSize(it.size)})
+                                      </p>
+                                      <div className="mt-1 flex items-center justify-between gap-3 text-xs text-slate-700">
+                                        <span>₱{Number(it.unit_price ?? 0).toFixed(2)}/case</span>
+                                        <span>Qty: {it.qty}</span>
+                                      </div>
+                                    </div>
+                                  </div>
                                 ))}
                               </div>
                             )}
@@ -412,14 +512,29 @@ export default function OrdersPage() {
                                     {order.bottle_items.length === 0 ? (
                                       <p className="text-sm text-slate-600">None</p>
                                     ) : (
-                                      <div className="flex flex-wrap gap-2">
+                                      <div className="space-y-2">
                                         {order.bottle_items.map((it) => (
-                                          <span
+                                          <div
                                             key={`bottle-${it.name}`}
-                                            className="inline-flex items-center rounded-full border border-sky-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-700"
+                                            className="flex items-center gap-2 rounded-xl border border-sky-200 bg-white px-2 py-2 text-xs font-medium text-slate-700"
                                           >
-                                            {it.name} x{it.qty} • {it.size}
-                                          </span>
+                                            {it.photo_url ? (
+                                              <img
+                                                src={it.photo_url}
+                                                alt={`${it.name} product`}
+                                                className="h-14 w-14 rounded-lg border border-sky-100 bg-white object-contain"
+                                              />
+                                            ) : null}
+                                            <div className="min-w-0 flex-1">
+                                              <p className="text-xs font-semibold text-slate-800">
+                                                {it.name} ({formatItemSize(it.size)})
+                                              </p>
+                                              <div className="mt-1 flex items-center justify-between gap-3 text-xs text-slate-700">
+                                                <span>₱{Number(it.unit_price ?? 0).toFixed(2)}/pc</span>
+                                                <span>Qty: {it.qty}</span>
+                                              </div>
+                                            </div>
+                                          </div>
                                         ))}
                                       </div>
                                     )}
@@ -432,14 +547,29 @@ export default function OrdersPage() {
                                     {order.case_items.length === 0 ? (
                                       <p className="text-sm text-slate-600">None</p>
                                     ) : (
-                                      <div className="flex flex-wrap gap-2">
+                                      <div className="space-y-2">
                                         {order.case_items.map((it) => (
-                                          <span
+                                          <div
                                             key={`case-${it.name}`}
-                                            className="inline-flex items-center rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-700"
+                                            className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-2 py-2 text-xs font-medium text-slate-700"
                                           >
-                                            {it.name} x{it.qty} • {it.size}
-                                          </span>
+                                            {it.photo_url ? (
+                                              <img
+                                                src={it.photo_url}
+                                                alt={`${it.name} product`}
+                                                className="h-14 w-14 rounded-lg border border-emerald-100 bg-white object-contain"
+                                              />
+                                            ) : null}
+                                            <div className="min-w-0 flex-1">
+                                              <p className="text-xs font-semibold text-slate-800">
+                                                {it.name} ({formatItemSize(it.size)})
+                                              </p>
+                                              <div className="mt-1 flex items-center justify-between gap-3 text-xs text-slate-700">
+                                                <span>₱{Number(it.unit_price ?? 0).toFixed(2)}/case</span>
+                                                <span>Qty: {it.qty}</span>
+                                              </div>
+                                            </div>
+                                          </div>
                                         ))}
                                       </div>
                                     )}

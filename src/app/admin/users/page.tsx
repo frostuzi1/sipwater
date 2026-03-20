@@ -232,7 +232,7 @@ export default function AdminUsersPage() {
       }
 
       if (!isAdminEmail(user.email)) {
-        router.replace("/test-landing");
+        router.replace("/home");
         return;
       }
 

@@ -365,7 +365,7 @@ export default function AdminLandingPage() {
       }
 
       if (!isAdminEmail(user.email)) {
-        router.replace("/test-landing");
+        router.replace("/home");
         return;
       }
 

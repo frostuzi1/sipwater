@@ -85,6 +85,11 @@ const isKamanCategory = (category?: string) =>
   (category ?? "").trim().toLowerCase() === "kaman";
 const getPrimaryUnitLabel = (category?: string) =>
   isKamanCategory(category) ? "Pack" : "Bottle";
+const formatPackLabel = (pack: string, category?: string) => {
+  const qty = String(pack).match(/\d+/)?.[0];
+  if (!qty) return pack;
+  return isKamanCategory(category) ? `${qty} packs/case` : `${qty} bottles/case`;
+};
 
 export default function TestLandingPage() {
   const router = useRouter();
@@ -118,6 +123,7 @@ export default function TestLandingPage() {
   const [orderMessage, setOrderMessage] = useState<string | null>(null);
   const [addOrderAlert, setAddOrderAlert] = useState<string | null>(null);
   const addOrderAlertTimeoutRef = useRef<number | null>(null);
+  const [showBackToTop, setShowBackToTop] = useState(false);
 
   const syncProfile = async (params: {
     id: string;
@@ -225,6 +231,17 @@ export default function TestLandingPage() {
       // ignore write errors (e.g. storage disabled)
     }
   }, [cart, cartStorageKey]);
+
+  useEffect(() => {
+    const onScroll = () => {
+      setShowBackToTop(window.scrollY > 280);
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+    };
+  }, []);
 
   useEffect(() => {
     const loadUser = async () => {
@@ -467,20 +484,11 @@ export default function TestLandingPage() {
       const { error: insertError } = await supabase.from("orders").insert(payload as never);
       if (!insertError) {
         setOrderMessage(null);
-        setAddOrderAlert("Order placed successfully.");
-        if (addOrderAlertTimeoutRef.current) {
-          window.clearTimeout(addOrderAlertTimeoutRef.current);
-        }
-        addOrderAlertTimeoutRef.current = window.setTimeout(() => {
-          setAddOrderAlert(null);
-        }, 2500);
+        setFlashMessage("Order placed successfully.");
         setOrderStatus("Pending Confirmation");
         setCart([]);
-        setActiveTab("catalog");
-        window.setTimeout(() => {
-          scrollToProducts();
-        }, 0);
         setOrderLoading(false);
+        router.push("/orders");
         return;
       }
       lastError = insertError.message;
@@ -496,11 +504,38 @@ export default function TestLandingPage() {
     0
   );
 
+  const productPhotoById = new Map(
+    productGroups
+      .flatMap((group) => group.items)
+      .map((product) => [product.id, product.photoUrl ?? null] as const)
+  );
+
   const scrollToProducts = () => {
     const section = document.getElementById("products");
     if (section) {
       section.scrollIntoView({ behavior: "smooth", block: "start" });
     }
+  };
+
+  const animateBackToTop = () => {
+    const startY = window.scrollY;
+    if (startY <= 0) return;
+    const duration = 650;
+    const startTime = performance.now();
+    const easeInOutCubic = (t: number) =>
+      t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+    const step = (now: number) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = easeInOutCubic(progress);
+      window.scrollTo(0, Math.round(startY * (1 - eased)));
+      if (progress < 1) {
+        window.requestAnimationFrame(step);
+      }
+    };
+
+    window.requestAnimationFrame(step);
   };
 
   const handleHomeClick = () => {
@@ -512,7 +547,7 @@ export default function TestLandingPage() {
     <div className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-sky-50/50 text-slate-800">
       <Navbar
         hideAuthButtons
-        homeHref="/test-landing"
+        homeHref="/home"
         profileHref="/profile"
         orderHistoryHref="/orders"
         userName={displayName ?? "User"}
@@ -569,7 +604,10 @@ export default function TestLandingPage() {
           <div className="inline-flex w-full max-w-full flex-wrap rounded-full border border-sky-200 bg-white p-1 text-xs font-medium shadow-sm sm:inline-flex sm:w-auto">
             <button
               type="button"
-              onClick={() => setActiveTab("catalog")}
+              onClick={() => {
+                setActiveTab("catalog");
+                scrollToProducts();
+              }}
               className={`min-h-14 flex-1 rounded-full px-6 py-4 transition sm:min-h-10 sm:px-4 sm:py-2 sm:flex-none ${
                 activeTab === "catalog"
                   ? "bg-sky-500 text-white shadow-md shadow-sky-500/30"
@@ -580,7 +618,10 @@ export default function TestLandingPage() {
             </button>
             <button
               type="button"
-              onClick={() => setActiveTab("view-order")}
+              onClick={() => {
+                setActiveTab("view-order");
+                scrollToProducts();
+              }}
               className={`min-h-14 flex-1 rounded-full px-6 py-4 transition sm:min-h-10 sm:px-4 sm:py-2 sm:flex-none ${
                 activeTab === "view-order"
                   ? "bg-sky-500 text-white shadow-md shadow-sky-500/30"
@@ -592,7 +633,7 @@ export default function TestLandingPage() {
           </div>
 
           {activeTab === "view-order" ? (
-            <div className="space-y-4 rounded-3xl border border-sky-100 bg-white p-6 shadow-md shadow-sky-500/5">
+            <div className="space-y-4 rounded-3xl border border-sky-100 bg-white p-6 shadow-md shadow-sky-500/5 sm:mr-auto sm:max-w-4xl">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h3 className="text-lg font-semibold text-slate-800">Your order</h3>
@@ -613,21 +654,24 @@ export default function TestLandingPage() {
                   {cart.map((item) => (
                     <div
                       key={item.key}
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sky-100 bg-sky-50/30 p-3"
+                      className="flex w-full flex-wrap items-start justify-between gap-3 rounded-2xl border border-sky-100 bg-sky-50/30 p-3 sm:flex-nowrap"
                     >
-                      <div className="flex min-w-0 items-center gap-3">
-                        {item.photoUrl ? (
+                      <div className="flex w-full min-w-0 items-start gap-3 sm:gap-4">
+                        {(item.photoUrl ?? productPhotoById.get(item.productId)) ? (
                           <img
-                            src={item.photoUrl}
+                            src={(item.photoUrl ?? productPhotoById.get(item.productId)) || ""}
                             alt={`${item.name} product photo`}
-                            className="h-14 w-14 shrink-0 rounded-xl border border-sky-100 object-cover"
+                            className="h-44 w-40 shrink-0 rounded-xl border border-sky-100 bg-white object-contain sm:h-28 sm:w-44 sm:bg-sky-50 sm:object-cover"
                           />
                         ) : (
-                          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-sky-100 bg-white text-sky-600">
+                          <div className="flex h-44 w-40 shrink-0 items-center justify-center rounded-xl border border-sky-100 bg-white text-sky-600 sm:h-28 sm:w-44">
                             <Droplets className="size-5" aria-hidden={true} />
                           </div>
                         )}
-                        <div className="min-w-0">
+                        <div className="min-w-0 self-center text-center sm:text-left">
+                          <p className="text-[11px] uppercase tracking-wide text-sky-600">
+                            {item.category || "Product"}
+                          </p>
                           <p className="text-sm font-semibold text-slate-800">{item.name}</p>
                           <p className="text-xs text-slate-500">{item.size}</p>
                           <p className="text-xs text-slate-500">
@@ -638,7 +682,7 @@ export default function TestLandingPage() {
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex w-full items-center justify-center gap-2 sm:w-auto sm:shrink-0 sm:self-center">
                         <button
                           type="button"
                           onClick={() => updateQuantity(item.key, item.quantity - 1)}
@@ -657,7 +701,7 @@ export default function TestLandingPage() {
                           +
                         </button>
                       </div>
-                      <div className="w-full text-sm font-semibold text-slate-800 sm:w-auto sm:text-right">
+                      <div className="w-full text-sm font-semibold text-slate-800 sm:w-auto sm:shrink-0 sm:self-center sm:text-right">
                         {formatPeso(item.unitPrice * item.quantity)}
                       </div>
                     </div>
@@ -724,14 +768,16 @@ export default function TestLandingPage() {
                             <Droplets className="size-5" aria-hidden={true} />
                           </span>
                           <span className="text-xs font-medium text-slate-500">
-                            {item.pack}
+                            {formatPackLabel(item.pack, item.category)}
                           </span>
                         </div>
                       )}
 
                       {item.photoUrl ? (
                         <div className="mt-3 flex justify-end">
-                          <span className="text-xs font-medium text-slate-500">{item.pack}</span>
+                          <span className="text-xs font-medium text-slate-500">
+                            {formatPackLabel(item.pack, item.category)}
+                          </span>
                         </div>
                       ) : null}
 
@@ -781,6 +827,20 @@ export default function TestLandingPage() {
           )}
         </motion.section>
       </main>
+
+      {showBackToTop ? (
+        <motion.button
+          type="button"
+          onClick={animateBackToTop}
+          whileHover={{ y: -2 }}
+          whileTap={{ scale: 0.88, rotate: -12 }}
+          transition={{ type: "spring", stiffness: 420, damping: 20 }}
+          className="fixed bottom-5 right-5 z-50 inline-flex h-12 w-12 items-center justify-center rounded-full bg-sky-500 text-xl font-bold text-white shadow-lg shadow-sky-500/30 transition hover:bg-sky-600 sm:bottom-6 sm:right-6"
+          aria-label="Back to top"
+        >
+          ↑
+        </motion.button>
+      ) : null}
     </div>
   );
 }

@@ -189,7 +189,7 @@ export default function AdminOrdersPage() {
       }
 
       if (!isAdminEmail(user.email)) {
-        router.replace("/test-landing");
+        router.replace("/home");
         return;
       }
 
