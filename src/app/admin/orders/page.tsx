@@ -6,7 +6,18 @@ import { useRouter } from "next/navigation";
 import { isAdminEmail } from "@/lib/admin";
 import { setFlashMessage } from "@/lib/flash-message";
 import { Navbar } from "@/components/navbar";
+import { getClientSubcategoryDisplayLabel } from "@/lib/catalog-product-order";
 import { getSupabaseClient } from "@/lib/supabase";
+
+function OrderLineSubcategory({ name, size }: { name: string; size: string }) {
+  const sub = getClientSubcategoryDisplayLabel(name, size);
+  if (!sub) return null;
+  return (
+    <p className="text-[10px] font-semibold uppercase tracking-wide text-sky-600">
+      {sub}
+    </p>
+  );
+}
 
 type AdminOrderRow = {
   id: string;
@@ -697,9 +708,15 @@ export default function AdminOrdersPage() {
                                         key={key}
                                         className="flex items-center justify-between gap-3 rounded-lg border border-sky-100 bg-white px-3 py-2"
                                       >
-                                        <span className="min-w-0 truncate text-xs font-semibold text-slate-700">
-                                          {it.name} • {it.size}
-                                        </span>
+                                        <div className="min-w-0 flex-1">
+                                          <OrderLineSubcategory
+                                            name={it.name}
+                                            size={it.size}
+                                          />
+                                          <span className="block truncate text-xs font-semibold text-slate-700">
+                                            {it.name} • {it.size}
+                                          </span>
+                                        </div>
                                         <input
                                           type="number"
                                           min={0}
@@ -716,7 +733,7 @@ export default function AdminOrdersPage() {
                                                 : 0,
                                             }));
                                           }}
-                                          className="w-20 rounded-lg border border-sky-200 px-2 py-1 text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-sky-400"
+                                          className="w-20 shrink-0 rounded-lg border border-sky-200 px-2 py-1 text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-sky-400"
                                         />
                                       </label>
                                     );
@@ -727,9 +744,15 @@ export default function AdminOrdersPage() {
                                   {order.bottle_items.map((it) => (
                                     <span
                                       key={`m-bottle-${it.name}`}
-                                      className="inline-flex items-center rounded-full border border-sky-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-700"
+                                      className="inline-flex max-w-full flex-col items-start gap-0.5 rounded-full border border-sky-200 bg-white px-2 py-1 text-xs font-medium text-slate-700"
                                     >
-                                      {it.name} x{it.qty} • {it.size}
+                                      <OrderLineSubcategory
+                                        name={it.name}
+                                        size={it.size}
+                                      />
+                                      <span>
+                                        {it.name} x{it.qty} • {it.size}
+                                      </span>
                                     </span>
                                   ))}
                                 </div>
@@ -753,9 +776,15 @@ export default function AdminOrdersPage() {
                                         key={key}
                                         className="flex items-center justify-between gap-3 rounded-lg border border-emerald-100 bg-white px-3 py-2"
                                       >
-                                        <span className="min-w-0 truncate text-xs font-semibold text-slate-700">
-                                          {it.name} • {it.size}
-                                        </span>
+                                        <div className="min-w-0 flex-1">
+                                          <OrderLineSubcategory
+                                            name={it.name}
+                                            size={it.size}
+                                          />
+                                          <span className="block truncate text-xs font-semibold text-slate-700">
+                                            {it.name} • {it.size}
+                                          </span>
+                                        </div>
                                         <input
                                           type="number"
                                           min={0}
@@ -772,7 +801,7 @@ export default function AdminOrdersPage() {
                                                 : 0,
                                             }));
                                           }}
-                                          className="w-20 rounded-lg border border-emerald-200 px-2 py-1 text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-400"
+                                          className="w-20 shrink-0 rounded-lg border border-emerald-200 px-2 py-1 text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-400"
                                         />
                                       </label>
                                     );
@@ -783,9 +812,15 @@ export default function AdminOrdersPage() {
                                   {order.case_items.map((it) => (
                                     <span
                                       key={`m-case-${it.name}`}
-                                      className="inline-flex items-center rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-700"
+                                      className="inline-flex max-w-full flex-col items-start gap-0.5 rounded-full border border-emerald-200 bg-white px-2 py-1 text-xs font-medium text-slate-700"
                                     >
-                                      {it.name} x{it.qty} • {it.size}
+                                      <OrderLineSubcategory
+                                        name={it.name}
+                                        size={it.size}
+                                      />
+                                      <span>
+                                        {it.name} x{it.qty} • {it.size}
+                                      </span>
                                     </span>
                                   ))}
                                 </div>
@@ -977,9 +1012,15 @@ export default function AdminOrdersPage() {
                                                 key={key}
                                                 className="flex items-center justify-between gap-3 rounded-lg border border-sky-100 bg-white px-3 py-2"
                                               >
-                                                <span className="min-w-0 truncate text-xs font-semibold text-slate-700">
-                                                  {it.name} • {it.size}
-                                                </span>
+                                                <div className="min-w-0 flex-1">
+                                                  <OrderLineSubcategory
+                                                    name={it.name}
+                                                    size={it.size}
+                                                  />
+                                                  <span className="block truncate text-xs font-semibold text-slate-700">
+                                                    {it.name} • {it.size}
+                                                  </span>
+                                                </div>
                                                 <input
                                                   type="number"
                                                   min={0}
@@ -999,7 +1040,7 @@ export default function AdminOrdersPage() {
                                                         : 0,
                                                     }));
                                                   }}
-                                                  className="w-24 rounded-lg border border-sky-200 px-2 py-1 text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-sky-400"
+                                                  className="w-24 shrink-0 rounded-lg border border-sky-200 px-2 py-1 text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-sky-400"
                                                 />
                                               </label>
                                             );
@@ -1010,9 +1051,15 @@ export default function AdminOrdersPage() {
                                           {order.bottle_items.map((it) => (
                                             <span
                                               key={`desk-bottle-${it.name}`}
-                                              className="inline-flex items-center rounded-full border border-sky-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-700"
+                                              className="inline-flex max-w-full flex-col items-start gap-0.5 rounded-full border border-sky-200 bg-white px-2 py-1 text-xs font-medium text-slate-700"
                                             >
-                                              {it.name} x{it.qty} • {it.size}
+                                              <OrderLineSubcategory
+                                                name={it.name}
+                                                size={it.size}
+                                              />
+                                              <span>
+                                                {it.name} x{it.qty} • {it.size}
+                                              </span>
                                             </span>
                                           ))}
                                         </div>
@@ -1036,9 +1083,15 @@ export default function AdminOrdersPage() {
                                                 key={key}
                                                 className="flex items-center justify-between gap-3 rounded-lg border border-emerald-100 bg-white px-3 py-2"
                                               >
-                                                <span className="min-w-0 truncate text-xs font-semibold text-slate-700">
-                                                  {it.name} • {it.size}
-                                                </span>
+                                                <div className="min-w-0 flex-1">
+                                                  <OrderLineSubcategory
+                                                    name={it.name}
+                                                    size={it.size}
+                                                  />
+                                                  <span className="block truncate text-xs font-semibold text-slate-700">
+                                                    {it.name} • {it.size}
+                                                  </span>
+                                                </div>
                                                 <input
                                                   type="number"
                                                   min={0}
@@ -1058,7 +1111,7 @@ export default function AdminOrdersPage() {
                                                         : 0,
                                                     }));
                                                   }}
-                                                  className="w-24 rounded-lg border border-emerald-200 px-2 py-1 text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-400"
+                                                  className="w-24 shrink-0 rounded-lg border border-emerald-200 px-2 py-1 text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-400"
                                                 />
                                               </label>
                                             );
@@ -1069,9 +1122,15 @@ export default function AdminOrdersPage() {
                                           {order.case_items.map((it) => (
                                             <span
                                               key={`desk-case-${it.name}`}
-                                              className="inline-flex items-center rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-700"
+                                              className="inline-flex max-w-full flex-col items-start gap-0.5 rounded-full border border-emerald-200 bg-white px-2 py-1 text-xs font-medium text-slate-700"
                                             >
-                                              {it.name} x{it.qty} • {it.size}
+                                              <OrderLineSubcategory
+                                                name={it.name}
+                                                size={it.size}
+                                              />
+                                              <span>
+                                                {it.name} x{it.qty} • {it.size}
+                                              </span>
                                             </span>
                                           ))}
                                         </div>
@@ -1199,9 +1258,15 @@ export default function AdminOrdersPage() {
                             {order.bottle_items.map((it) => (
                               <span
                                 key={`archived-bottle-${order.id}-${it.name}-${it.size}-${it.pack}`}
-                                className="inline-flex items-center rounded-full border border-sky-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-700"
+                                className="inline-flex max-w-full flex-col items-start gap-0.5 rounded-full border border-sky-200 bg-white px-2 py-1 text-xs font-medium text-slate-700"
                               >
-                                {it.name} x{it.qty} • {it.size}
+                                <OrderLineSubcategory
+                                  name={it.name}
+                                  size={it.size}
+                                />
+                                <span>
+                                  {it.name} x{it.qty} • {it.size}
+                                </span>
                               </span>
                             ))}
                           </div>
@@ -1219,9 +1284,15 @@ export default function AdminOrdersPage() {
                             {order.case_items.map((it) => (
                               <span
                                 key={`archived-case-${order.id}-${it.name}-${it.size}-${it.pack}`}
-                                className="inline-flex items-center rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-700"
+                                className="inline-flex max-w-full flex-col items-start gap-0.5 rounded-full border border-emerald-200 bg-white px-2 py-1 text-xs font-medium text-slate-700"
                               >
-                                {it.name} x{it.qty} • {it.size}
+                                <OrderLineSubcategory
+                                  name={it.name}
+                                  size={it.size}
+                                />
+                                <span>
+                                  {it.name} x{it.qty} • {it.size}
+                                </span>
                               </span>
                             ))}
                           </div>

@@ -81,8 +81,6 @@ const itemOrderMap = new Map<string, number>(
 );
 const CLIENT_CATEGORY_LABELS = [
   "Purified Water",
-  "Electrolyte Drinks",
-  "Sparkling Drinks",
   "Yoghurt Drinks",
   "Carbonated Drinks",
   "Snacks",
@@ -93,30 +91,53 @@ const formatPeso = (amount: number) =>
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
-const isKamanCategory = (category?: string) =>
-  (category ?? "").trim().toLowerCase() === "kaman";
+const isSnacksCategory = (category?: string) => {
+  const c = (category ?? "").trim().toLowerCase();
+  return c === "kaman" || c === "snacks";
+};
 const getPrimaryUnitLabel = (category?: string) =>
-  isKamanCategory(category) ? "Pack" : "Bottle";
+  isSnacksCategory(category) ? "Pack" : "Bottle";
 const formatSizeLabel = (size: string) =>
   size.replace(/\bml\b/gi, "mL").replace(/\bl\b/g, "L");
 const categoryToSlug = (category: string) =>
   category.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 const getClientCategoryLabel = (sourceCategory: string, productName: string) => {
+  const trimmed = sourceCategory.trim();
+  if ((CLIENT_CATEGORY_LABELS as readonly string[]).includes(trimmed)) {
+    return trimmed;
+  }
+
   const category = sourceCategory.toLowerCase();
   const name = productName.trim().toLowerCase();
 
   if (category.includes("kaman") || name.includes("egg roll")) return "Snacks";
   if (
+    category.includes("sparkling") ||
+    category.includes("vida") ||
+    category.includes("nutrifizz") ||
     category.includes("prebiotic") ||
+    category.includes("carbonated") ||
     name.includes("lemon lime prebiotic") ||
-    name.includes("yogurt soda prebiotic")
+    name.includes("yogurt soda prebiotic") ||
+    name.includes("yoghurt soda prebiotic")
   ) {
     return "Carbonated Drinks";
   }
-  if (category.includes("yobick") || category.includes("deedo")) return "Yoghurt Drinks";
-  if (category.includes("electrolyte")) return "Electrolyte Drinks";
-  if (category.includes("sparkling")) return "Sparkling Drinks";
-  if (category.includes("purified")) return "Purified Water";
+  if (
+    category.includes("yobick") ||
+    category.includes("deedo") ||
+    category.includes("yoghurt drink") ||
+    category.includes("yogurt drink")
+  ) {
+    return "Yoghurt Drinks";
+  }
+  if (
+    category.includes("electrolyte") ||
+    category.includes("purified") ||
+    category.includes("drinking water")
+  ) {
+    return "Purified Water";
+  }
   return "Purified Water";
 };
 
@@ -138,8 +159,6 @@ export default function TestLandingPage() {
   const [orderMessage, setOrderMessage] = useState<string | null>(null);
   const [addOrderAlert, setAddOrderAlert] = useState<string | null>(null);
   const addOrderAlertTimeoutRef = useRef<number | null>(null);
-  const [showBackToTop, setShowBackToTop] = useState(false);
-
   const syncProfile = async (params: {
     id: string;
     email: string | null;
@@ -253,17 +272,6 @@ export default function TestLandingPage() {
   }, [cart, cartStorageKey]);
 
   useEffect(() => {
-    const onScroll = () => {
-      setShowBackToTop(window.scrollY > 280);
-    };
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-    };
-  }, []);
-
-  useEffect(() => {
     const openCatalogFromHash = () => {
       if (!window.location.hash.startsWith("#client-category-")) return;
       setActiveTab("catalog");
@@ -319,105 +327,7 @@ export default function TestLandingPage() {
         return;
       }
 
-      const fullName =
-        (user.user_metadata?.full_name as string | undefined) ?? null;
-      const address =
-        (user.user_metadata?.address as string | undefined) ?? "";
-      const rawContactNumber =
-        (user.user_metadata?.contact_number as string | undefined) ??
-        (user.user_metadata?.contact as string | undefined) ??
-        (user.user_metadata?.phone as string | undefined) ??
-        "";
-      const contactNumber = String(rawContactNumber ?? "");
-      setUserId(user.id);
-      setDisplayName(fullName ?? user.email ?? null);
-      try {
-        const nameToCache = fullName ?? user.email ?? "";
-        if (nameToCache) {
-          window.localStorage.setItem(
-            DISPLAY_NAME_CACHE_KEY,
-            nameToCache
-          );
-        }
-      } catch {
-        // ignore localStorage errors
-      }
-
-      // Ensure we always have a matching `profiles` row for admin lookups.
-      await syncProfile({
-        id: user.id,
-        email: user.email ?? null,
-        fullName: fullName ?? "",
-        address,
-        contactNumber,
-      });
-
-      const { data: productsData, error: productsError } = await supabase
-        .from("products")
-        .select("id, name, category, size, pack, bottle_price, case_price, photo_url")
-        .order("category", { ascending: true })
-        .order("name", { ascending: true });
-
-      if (productsError) {
-        setError(`Unable to load products: ${productsError.message}`);
-      } else {
-        const normalizedProducts = ((productsData as Array<{
-          id: string;
-          name: string;
-          category: string;
-          size: string;
-          pack: string;
-          bottle_price: number;
-          case_price: number;
-          photo_url: string | null;
-        }> | null) ?? []
-        ).sort((a, b) => {
-          const catA = categoryOrderMap.get(a.category) ?? Number.MAX_SAFE_INTEGER;
-          const catB = categoryOrderMap.get(b.category) ?? Number.MAX_SAFE_INTEGER;
-          if (catA !== catB) return catA - catB;
-
-          const keyA = normalizeOrderKey(
-            `${a.category}__${a.name}__${a.size}__${a.pack}`
-          );
-          const keyB = normalizeOrderKey(
-            `${b.category}__${b.name}__${b.size}__${b.pack}`
-          );
-          const orderA = itemOrderMap.get(keyA) ?? Number.MAX_SAFE_INTEGER;
-          const orderB = itemOrderMap.get(keyB) ?? Number.MAX_SAFE_INTEGER;
-          if (orderA !== orderB) return orderA - orderB;
-
-          return `${a.category} ${a.name} ${a.size}`.localeCompare(
-            `${b.category} ${b.name} ${b.size}`
-          );
-        });
-
-        const grouped = normalizedProducts.reduce<Record<string, ProductCard[]>>((acc, item) => {
-          const sourceCategory = item.category ?? "Other Products";
-          const displayCategory = getClientCategoryLabel(sourceCategory, item.name);
-          if (!acc[displayCategory]) acc[displayCategory] = [];
-          acc[displayCategory].push({
-            id: item.id,
-            category: sourceCategory,
-            name: item.name,
-            size: item.size,
-            pack: item.pack,
-            bottlePrice: Number(item.bottle_price ?? 0),
-            casePrice: Number(item.case_price ?? 0),
-            photoUrl: item.photo_url ?? null,
-          });
-          return acc;
-        }, {});
-
-        setProductGroups(
-          CLIENT_CATEGORY_LABELS.map((category) => ({
-            category,
-            items: grouped[category] ?? [],
-          })).filter((group) => group.items.length > 0)
-        );
-      }
-
-      setProductsLoading(false);
-      setLoading(false);
+      router.replace("/category/purified-water");
     };
 
     void loadUser();
@@ -444,7 +354,7 @@ export default function TestLandingPage() {
     setOrderMessage(null);
     setOrderStatus("Draft");
     const unitLabel =
-      unitType === "case" ? "case" : isKamanCategory(item.category) ? "pack" : "bottle";
+      unitType === "case" ? "case" : isSnacksCategory(item.category) ? "pack" : "bottle";
     setAddOrderAlert(
       `Added ${unitLabel} to order.`
     );
@@ -571,27 +481,6 @@ export default function TestLandingPage() {
     }
   };
 
-  const animateBackToTop = () => {
-    const startY = window.scrollY;
-    if (startY <= 0) return;
-    const duration = 650;
-    const startTime = performance.now();
-    const easeInOutCubic = (t: number) =>
-      t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-
-    const step = (now: number) => {
-      const elapsed = now - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      const eased = easeInOutCubic(progress);
-      window.scrollTo(0, Math.round(startY * (1 - eased)));
-      if (progress < 1) {
-        window.requestAnimationFrame(step);
-      }
-    };
-
-    window.requestAnimationFrame(step);
-  };
-
   const handleHomeClick = () => {
     setActiveTab("catalog");
     scrollToProducts();
@@ -601,7 +490,7 @@ export default function TestLandingPage() {
     <div className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-sky-50/50 text-slate-800">
       <Navbar
         hideAuthButtons
-        homeHref="/home"
+        homeHref="/category/purified-water"
         categoryLinks={(productGroups.length > 0
           ? productGroups.map((group) => group.category)
           : [...CLIENT_CATEGORY_LABELS]
@@ -843,20 +732,6 @@ export default function TestLandingPage() {
         </motion.section>
 
       </main>
-
-      {showBackToTop ? (
-        <motion.button
-          type="button"
-          onClick={animateBackToTop}
-          whileHover={{ y: -2 }}
-          whileTap={{ scale: 0.88, rotate: -12 }}
-          transition={{ type: "spring", stiffness: 420, damping: 20 }}
-          className="fixed bottom-5 right-5 z-50 inline-flex h-12 w-12 items-center justify-center rounded-full bg-sky-500 text-xl font-bold text-white shadow-lg shadow-sky-500/30 transition hover:bg-sky-600 sm:bottom-6 sm:right-6"
-          aria-label="Back to top"
-        >
-          ↑
-        </motion.button>
-      ) : null}
     </div>
   );
 }

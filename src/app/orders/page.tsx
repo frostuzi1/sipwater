@@ -4,13 +4,12 @@ import { Fragment, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { Navbar } from "@/components/navbar";
+import { getClientSubcategoryDisplayLabel } from "@/lib/catalog-product-order";
 import { setFlashMessage } from "@/lib/flash-message";
 import { getSupabaseClient } from "@/lib/supabase";
 
 const CLIENT_CATEGORY_LABELS = [
   "Purified Water",
-  "Electrolyte Drinks",
-  "Sparkling Drinks",
   "Yoghurt Drinks",
   "Carbonated Drinks",
   "Snacks",
@@ -50,6 +49,16 @@ type OrderRow = {
     photo_url: string | null;
   }>;
 };
+
+function OrderLineSubcategory({ name, size }: { name: string; size: string }) {
+  const sub = getClientSubcategoryDisplayLabel(name, size);
+  if (!sub) return null;
+  return (
+    <p className="text-[10px] font-semibold uppercase tracking-wide text-sky-600">
+      {sub}
+    </p>
+  );
+}
 
 export default function OrdersPage() {
   const router = useRouter();
@@ -287,7 +296,7 @@ export default function OrdersPage() {
     <div className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-sky-50/50 text-slate-800">
       <Navbar
         hideAuthButtons
-        homeHref="/home"
+        homeHref="/category/purified-water"
         profileHref="/profile"
         orderHistoryHref="/orders"
         userName={displayName ?? "User"}
@@ -408,6 +417,7 @@ export default function OrdersPage() {
                                       />
                                     ) : null}
                                     <div className="min-w-0 flex-1">
+                                      <OrderLineSubcategory name={it.name} size={it.size} />
                                       <p className="text-xs font-semibold text-slate-800">
                                         {it.name} ({formatItemSize(it.size)})
                                       </p>
@@ -442,6 +452,7 @@ export default function OrdersPage() {
                                       />
                                     ) : null}
                                     <div className="min-w-0 flex-1">
+                                      <OrderLineSubcategory name={it.name} size={it.size} />
                                       <p className="text-xs font-semibold text-slate-800">
                                         {it.name} ({formatItemSize(it.size)})
                                       </p>
@@ -554,6 +565,7 @@ export default function OrdersPage() {
                                               />
                                             ) : null}
                                             <div className="min-w-0 flex-1">
+                                              <OrderLineSubcategory name={it.name} size={it.size} />
                                               <p className="text-xs font-semibold text-slate-800">
                                                 {it.name} ({formatItemSize(it.size)})
                                               </p>
@@ -589,6 +601,7 @@ export default function OrdersPage() {
                                               />
                                             ) : null}
                                             <div className="min-w-0 flex-1">
+                                              <OrderLineSubcategory name={it.name} size={it.size} />
                                               <p className="text-xs font-semibold text-slate-800">
                                                 {it.name} ({formatItemSize(it.size)})
                                               </p>

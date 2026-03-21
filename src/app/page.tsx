@@ -1,6 +1,6 @@
  "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import { BadgeCheck, Droplets, Leaf, ShieldCheck, Truck } from "lucide-react";
@@ -15,7 +15,9 @@ import {
 } from "@/components/ui/dialog";
 import { isAdminEmail } from "@/lib/admin";
 import { setFlashMessage } from "@/lib/flash-message";
+import { sortCatalogProductsInCategory } from "@/lib/catalog-product-order";
 import { getSupabaseClient } from "@/lib/supabase";
+import { cn } from "@/lib/utils";
 
 type Product = {
   name: string;
@@ -46,7 +48,7 @@ type ProductRow = {
 
 const fallbackProductGroups: ProductGroup[] = [
   {
-    category: "Purified Drinking Water",
+    category: "Purified Water",
     items: [
       {
         name: "SIP Purified Water",
@@ -72,11 +74,6 @@ const fallbackProductGroups: ProductGroup[] = [
         casePrice: "₱180",
         icon: <Droplets className="size-5" aria-hidden={true} />,
       },
-    ],
-  },
-  {
-    category: "SIP Plus Electrolyte Drinks",
-    items: [
       {
         name: "Original Grapefruit Sugar Free",
         size: "350 ml",
@@ -96,7 +93,38 @@ const fallbackProductGroups: ProductGroup[] = [
     ],
   },
   {
-    category: "Vida Zero Sparkling Drinks",
+    category: "Yoghurt Drinks",
+    items: [
+      {
+        name: "Yobick Yoghurt Drink Original",
+        size: "310 ml",
+        pack: "24 / case",
+        bottlePrice: "₱42",
+        casePrice: "₱1,008",
+        icon: <Leaf className="size-5" aria-hidden={true} />,
+      },
+      {
+        name: "Deedo Juice with Yoghurt — Grape Juice",
+        size: "115 ml",
+        pack: "10 / case",
+        bottlePrice: "₱72",
+        casePrice: "₱720",
+        note: "₱12.00 each",
+        icon: <Leaf className="size-5" aria-hidden={true} />,
+      },
+      {
+        name: "Deedo Juice with Yoghurt — Orange Juice",
+        size: "115 ml",
+        pack: "10 / case",
+        bottlePrice: "₱72",
+        casePrice: "₱720",
+        note: "₱12.00 each",
+        icon: <Leaf className="size-5" aria-hidden={true} />,
+      },
+    ],
+  },
+  {
+    category: "Carbonated Drinks",
     items: [
       {
         name: "Salty Lychee",
@@ -122,47 +150,6 @@ const fallbackProductGroups: ProductGroup[] = [
         casePrice: "₱1,008",
         icon: <Droplets className="size-5" aria-hidden={true} />,
       },
-    ],
-  },
-  {
-    category: "Yobick Yoghurt Drink",
-    items: [
-      {
-        name: "Original",
-        size: "310 ml",
-        pack: "24 / case",
-        bottlePrice: "₱42",
-        casePrice: "₱1,008",
-        icon: <Leaf className="size-5" aria-hidden={true} />,
-      },
-    ],
-  },
-  {
-    category: "Deedo Juice with Yogurt",
-    items: [
-      {
-        name: "Grape Juice (10×6)",
-        size: "115 ml",
-        pack: "10 / case",
-        bottlePrice: "₱72",
-        casePrice: "₱720",
-        note: "₱12.00 each",
-        icon: <Leaf className="size-5" aria-hidden={true} />,
-      },
-      {
-        name: "Orange Juice (10×6)",
-        size: "115 ml",
-        pack: "10 / case",
-        bottlePrice: "₱72",
-        casePrice: "₱720",
-        note: "₱12.00 each",
-        icon: <Leaf className="size-5" aria-hidden={true} />,
-      },
-    ],
-  },
-  {
-    category: "Nutrifizz Prebiotic Soda Drinks",
-    items: [
       {
         name: "Lemon Lime Prebiotic",
         size: "330 ml",
@@ -172,7 +159,7 @@ const fallbackProductGroups: ProductGroup[] = [
         icon: <BadgeCheck className="size-5" aria-hidden={true} />,
       },
       {
-        name: "Yogurt Soda Prebiotic",
+        name: "Yoghurt Soda Prebiotic",
         size: "330 ml",
         pack: "24 / case",
         bottlePrice: "₱36",
@@ -182,10 +169,10 @@ const fallbackProductGroups: ProductGroup[] = [
     ],
   },
   {
-    category: "Kaman",
+    category: "Snacks",
     items: [
       {
-        name: "Coconut Ice Cream Egg Roll (12×20)",
+        name: "Kaman Coconut Ice Cream Egg Roll",
         size: "20 g",
         pack: "12 / case",
         bottlePrice: "₱200",
@@ -194,7 +181,7 @@ const fallbackProductGroups: ProductGroup[] = [
         icon: <ShieldCheck className="size-5" aria-hidden={true} />,
       },
       {
-        name: "Egg Yolk Egg Roll (12×20)",
+        name: "Kaman Egg Yolk Egg Roll",
         size: "20 g",
         pack: "12 / case",
         bottlePrice: "₱200",
@@ -211,10 +198,10 @@ const getIconForCategory = (category: string) => {
   if (value.includes("electrolyte") || value.includes("prebiotic")) {
     return <BadgeCheck className="size-5" aria-hidden={true} />;
   }
-  if (value.includes("yoghurt") || value.includes("juice")) {
+  if (value.includes("yoghurt") || value.includes("yogurt") || value.includes("deedo")) {
     return <Leaf className="size-5" aria-hidden={true} />;
   }
-  if (value.includes("kaman") || value.includes("egg")) {
+  if (value.includes("kaman") || value.includes("snacks") || value.includes("egg")) {
     return <ShieldCheck className="size-5" aria-hidden={true} />;
   }
   return <Droplets className="size-5" aria-hidden={true} />;
@@ -222,8 +209,6 @@ const getIconForCategory = (category: string) => {
 
 const LANDING_CATEGORY_NAV = [
   "Purified Water",
-  "Electrolyte Drinks",
-  "Sparkling Drinks",
   "Yoghurt Drinks",
   "Carbonated Drinks",
   "Snacks",
@@ -232,21 +217,42 @@ const LANDING_CATEGORY_NAV = [
 const normalizeName = (value: string) => value.trim().toLowerCase();
 
 const getLandingCategoryLabel = (sourceCategory: string, productName: string) => {
+  const trimmed = sourceCategory.trim();
+  if ((LANDING_CATEGORY_NAV as readonly string[]).includes(trimmed)) {
+    return trimmed;
+  }
+
   const category = sourceCategory.toLowerCase();
   const name = normalizeName(productName);
 
   if (category.includes("kaman") || name.includes("egg roll")) return "Snacks";
   if (
+    category.includes("sparkling") ||
+    category.includes("vida") ||
+    category.includes("nutrifizz") ||
     category.includes("prebiotic") ||
+    category.includes("carbonated") ||
     name.includes("lemon lime prebiotic") ||
-    name.includes("yogurt soda prebiotic")
+    name.includes("yogurt soda prebiotic") ||
+    name.includes("yoghurt soda prebiotic")
   ) {
     return "Carbonated Drinks";
   }
-  if (category.includes("yobick") || category.includes("deedo")) return "Yoghurt Drinks";
-  if (category.includes("electrolyte")) return "Electrolyte Drinks";
-  if (category.includes("sparkling")) return "Sparkling Drinks";
-  if (category.includes("purified")) return "Purified Water";
+  if (
+    category.includes("yobick") ||
+    category.includes("deedo") ||
+    category.includes("yoghurt drink") ||
+    category.includes("yogurt drink")
+  ) {
+    return "Yoghurt Drinks";
+  }
+  if (
+    category.includes("electrolyte") ||
+    category.includes("purified") ||
+    category.includes("drinking water")
+  ) {
+    return "Purified Water";
+  }
   return "Purified Water";
 };
 
@@ -263,7 +269,7 @@ const reshapeCatalogGroups = (groups: ProductGroup[]): ProductGroup[] => {
 
   return LANDING_CATEGORY_NAV.map((category) => ({
     category,
-    items: grouped[category] ?? [],
+    items: sortCatalogProductsInCategory(category, grouped[category] ?? []),
   })).filter((group) => group.items.length > 0);
 };
 const categoryToSlug = (category: string) =>
@@ -280,12 +286,10 @@ const parsePeso = (value: string) => Number(value.replace(/[^\d.]/g, "")) || 0;
 const formatPackLabel = (pack: string, category: string) => {
   const qty = String(pack).match(/\d+/)?.[0];
   if (!qty) return pack;
-  return category === "Kaman" ? `${qty} packs/case` : `${qty} bottles/case`;
+  return category === "Kaman" || category === "Snacks"
+    ? `${qty} packs/case`
+    : `${qty} bottles/case`;
 };
-
-const landingCategoryOrderMap: Map<string, number> = new Map(
-  fallbackProductGroups.map((group, index) => [group.category, index] as const)
-);
 
 const landingItemOrderMap: Map<string, number> = new Map(
   fallbackProductGroups.flatMap((group) =>
@@ -295,6 +299,12 @@ const landingItemOrderMap: Map<string, number> = new Map(
     ] as const)
   )
 );
+
+const landingCategorySortIndex = (sourceCategory: string, productName: string) => {
+  const label = getLandingCategoryLabel(sourceCategory, productName);
+  const idx = (LANDING_CATEGORY_NAV as readonly string[]).indexOf(label);
+  return idx >= 0 ? idx : Number.MAX_SAFE_INTEGER;
+};
 
 export default function Home() {
   const router = useRouter();
@@ -318,7 +328,18 @@ export default function Home() {
   );
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState<string | null>(null);
-  const [showBackToTop, setShowBackToTop] = useState(false);
+  const [hydrationHubHighlight, setHydrationHubHighlight] = useState(false);
+  const hydrationHubHighlightTimeoutRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (hydrationHubHighlightTimeoutRef.current) {
+        clearTimeout(hydrationHubHighlightTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const redirectIfAuthenticated = async () => {
@@ -381,10 +402,8 @@ export default function Home() {
       }
 
       const sortedRows = [...rows].sort((a, b) => {
-        const categoryOrderA =
-          landingCategoryOrderMap.get(a.category) ?? Number.MAX_SAFE_INTEGER;
-        const categoryOrderB =
-          landingCategoryOrderMap.get(b.category) ?? Number.MAX_SAFE_INTEGER;
+        const categoryOrderA = landingCategorySortIndex(a.category, a.name);
+        const categoryOrderB = landingCategorySortIndex(b.category, b.name);
         if (categoryOrderA !== categoryOrderB) {
           return categoryOrderA - categoryOrderB;
         }
@@ -442,17 +461,6 @@ export default function Home() {
 
     return () => {
       supabase.removeChannel(channel);
-    };
-  }, []);
-
-  useEffect(() => {
-    const onScroll = () => {
-      setShowBackToTop(window.scrollY > 280);
-    };
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", onScroll);
     };
   }, []);
 
@@ -587,7 +595,9 @@ export default function Home() {
     setFlashMessage("Logged in successfully.");
     setLoadingAuth(false);
     closeAuth();
-    router.push(isAdminEmail(data.user?.email) ? "/admin" : "/category/purified-water");
+    router.replace(
+      isAdminEmail(data.user?.email) ? "/admin" : "/category/purified-water"
+    );
   };
 
   const handleSignupSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -652,7 +662,9 @@ export default function Home() {
     if (data.session) {
       setAuthSuccess("Sign up successful.");
       closeAuth();
-      router.push(isAdminEmail(data.user?.email) ? "/admin" : "/category/purified-water");
+      router.replace(
+        isAdminEmail(data.user?.email) ? "/admin" : "/category/purified-water"
+      );
       return;
     }
 
@@ -662,32 +674,22 @@ export default function Home() {
     setLoadingAuth(false);
   };
 
-  const handleViewPlansClick = () => {
-    const section = document.getElementById("products");
+  const handleBrowseCategoriesClick = () => {
+    const section = document.getElementById("hydration-hub");
     if (section) {
       section.scrollIntoView({ behavior: "smooth", block: "start" });
     }
-  };
-
-  const animateBackToTop = () => {
-    const startY = window.scrollY;
-    if (startY <= 0) return;
-    const duration = 650;
-    const startTime = performance.now();
-    const easeInOutCubic = (t: number) =>
-      t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-
-    const step = (now: number) => {
-      const elapsed = now - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      const eased = easeInOutCubic(progress);
-      window.scrollTo(0, Math.round(startY * (1 - eased)));
-      if (progress < 1) {
-        window.requestAnimationFrame(step);
-      }
-    };
-
-    window.requestAnimationFrame(step);
+    if (hydrationHubHighlightTimeoutRef.current) {
+      clearTimeout(hydrationHubHighlightTimeoutRef.current);
+    }
+    setHydrationHubHighlight(false);
+    hydrationHubHighlightTimeoutRef.current = setTimeout(() => {
+      setHydrationHubHighlight(true);
+      hydrationHubHighlightTimeoutRef.current = setTimeout(() => {
+        setHydrationHubHighlight(false);
+        hydrationHubHighlightTimeoutRef.current = null;
+      }, 2000);
+    }, 450);
   };
 
   const handleAddToOrder = () => {
@@ -742,10 +744,10 @@ export default function Home() {
             <div className="flex flex-col gap-3 sm:flex-row">
               <button
                 type="button"
-                onClick={handleViewPlansClick}
+                onClick={handleBrowseCategoriesClick}
                 className="inline-flex h-11 items-center justify-center rounded-full bg-sky-500 px-6 text-sm font-semibold text-white shadow-lg shadow-sky-500/30 transition hover:bg-sky-600"
               >
-                View plans
+                Browse categories
               </button>
               <button
                 type="button"
@@ -836,13 +838,13 @@ export default function Home() {
                     <div className="flex items-center justify-between gap-2">
                       <span>Vida Zero Sparkling Drinks</span>
                       <span className="font-semibold text-sky-600">
-                         ₱42 / bottle
+                        ₱42 / bottle
                       </span>
                     </div>
                     <div className="flex items-center justify-between gap-2">
                       <span>SIP Plus Electrolyte Drinks</span>
                       <span className="font-semibold text-sky-600">
-                         ₱30 / bottle
+                        ₱30 / bottle
                       </span>
                     </div>
                     <div className="flex items-center justify-between gap-2">
@@ -851,10 +853,13 @@ export default function Home() {
                         ₱42 / bottle
                       </span>
                     </div>
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-start justify-between gap-2">
                       <span>Deedo Juice with Yogurt</span>
-                      <span className="font-semibold text-sky-600">
-                        ₱72 / pack (₱12 each)
+                      <span className="text-right text-sky-600">
+                        <span className="block font-semibold">₱72 / pack</span>
+                        <span className="block font-normal text-slate-500">
+                          (₱12 each)
+                        </span>
                       </span>
                     </div>
                     <div className="flex items-center justify-between gap-2">
@@ -863,10 +868,13 @@ export default function Home() {
                         ₱36 / bottle
                       </span>
                     </div>
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-start justify-between gap-2">
                       <span>Kaman Egg Rolls</span>
-                      <span className="font-semibold text-sky-600">
-                        ₱200 / pack (10pcs/pack)
+                      <span className="text-right text-sky-600">
+                        <span className="block font-semibold">₱200 / pack</span>
+                        <span className="block font-normal text-slate-500">
+                          (10pcs/pack)
+                        </span>
                       </span>
                     </div>
                   </div>
@@ -1139,7 +1147,16 @@ export default function Home() {
           </DialogContent>
         </Dialog>
 
-        <section className="relative mt-10 overflow-hidden rounded-3xl border border-sky-100 bg-gradient-to-br from-cyan-50 via-sky-50 to-blue-100/60 p-6 shadow-lg shadow-sky-500/15 sm:p-8">
+        <section
+          id="hydration-hub"
+          aria-label="Hydration hub"
+          className={cn(
+            "relative mt-10 scroll-mt-24 overflow-hidden rounded-3xl border bg-gradient-to-br from-cyan-50 via-sky-50 to-blue-100/60 p-6 transition-[border-color,box-shadow,ring] duration-500 ease-out sm:p-8",
+            hydrationHubHighlight
+              ? "border-sky-400 shadow-xl shadow-sky-400/35 ring-2 ring-sky-400/45"
+              : "border-sky-100 shadow-lg shadow-sky-500/15"
+          )}
+        >
           <div className="pointer-events-none absolute -top-20 -right-12 h-56 w-56 rounded-full bg-cyan-200/50 blur-3xl" />
           <div className="pointer-events-none absolute -bottom-24 -left-14 h-64 w-64 rounded-full bg-blue-200/40 blur-3xl" />
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.65),transparent_42%),radial-gradient(circle_at_80%_70%,rgba(255,255,255,0.45),transparent_48%)]" />
@@ -1172,20 +1189,6 @@ export default function Home() {
           </div>
         </section>
       </main>
-
-      {showBackToTop ? (
-        <motion.button
-          type="button"
-          onClick={animateBackToTop}
-          whileHover={{ y: -2 }}
-          whileTap={{ scale: 0.88, rotate: -12 }}
-          transition={{ type: "spring", stiffness: 420, damping: 20 }}
-          className="fixed bottom-5 right-5 z-50 inline-flex h-12 w-12 items-center justify-center rounded-full bg-sky-500 text-xl font-bold text-white shadow-lg shadow-sky-500/30 transition hover:bg-sky-600 sm:bottom-6 sm:right-6"
-          aria-label="Back to top"
-        >
-          ↑
-        </motion.button>
-      ) : null}
     </div>
   );
 }

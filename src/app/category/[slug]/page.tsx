@@ -1,12 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { BadgeCheck, Droplets, Leaf, ShieldCheck } from "lucide-react";
 
 import { Navbar } from "@/components/navbar";
+import {
+  getCarbonatedSubcategory,
+  getPurifiedWaterSubcategory,
+  getSnacksSubcategory,
+  getYoghurtSubcategory,
+  sortCatalogProductsInCategory,
+} from "@/lib/catalog-product-order";
 import { setFlashMessage } from "@/lib/flash-message";
 import { getSupabaseClient } from "@/lib/supabase";
 
@@ -50,8 +57,6 @@ type CartItem = {
 
 const CATEGORY_LABELS = [
   "Purified Water",
-  "Electrolyte Drinks",
-  "Sparkling Drinks",
   "Yoghurt Drinks",
   "Carbonated Drinks",
   "Snacks",
@@ -78,31 +83,52 @@ const getIconForCategory = (category: string) => {
   if (value.includes("electrolyte") || value.includes("prebiotic")) {
     return <BadgeCheck className="size-5" aria-hidden={true} />;
   }
-  if (value.includes("yoghurt") || value.includes("juice")) {
+  if (value.includes("yoghurt") || value.includes("yogurt") || value.includes("deedo")) {
     return <Leaf className="size-5" aria-hidden={true} />;
   }
-  if (value.includes("kaman") || value.includes("egg")) {
+  if (value.includes("kaman") || value.includes("snacks") || value.includes("egg")) {
     return <ShieldCheck className="size-5" aria-hidden={true} />;
   }
   return <Droplets className="size-5" aria-hidden={true} />;
 };
 
 const getLandingCategoryLabel = (sourceCategory: string, productName: string) => {
+  const trimmed = sourceCategory.trim();
+  if ((CATEGORY_LABELS as readonly string[]).includes(trimmed)) {
+    return trimmed;
+  }
+
   const category = sourceCategory.toLowerCase();
   const name = productName.trim().toLowerCase();
 
   if (category.includes("kaman") || name.includes("egg roll")) return "Snacks";
   if (
+    category.includes("sparkling") ||
+    category.includes("vida") ||
+    category.includes("nutrifizz") ||
     category.includes("prebiotic") ||
+    category.includes("carbonated") ||
     name.includes("lemon lime prebiotic") ||
-    name.includes("yogurt soda prebiotic")
+    name.includes("yogurt soda prebiotic") ||
+    name.includes("yoghurt soda prebiotic")
   ) {
     return "Carbonated Drinks";
   }
-  if (category.includes("yobick") || category.includes("deedo")) return "Yoghurt Drinks";
-  if (category.includes("electrolyte")) return "Electrolyte Drinks";
-  if (category.includes("sparkling")) return "Sparkling Drinks";
-  if (category.includes("purified")) return "Purified Water";
+  if (
+    category.includes("yobick") ||
+    category.includes("deedo") ||
+    category.includes("yoghurt drink") ||
+    category.includes("yogurt drink")
+  ) {
+    return "Yoghurt Drinks";
+  }
+  if (
+    category.includes("electrolyte") ||
+    category.includes("purified") ||
+    category.includes("drinking water")
+  ) {
+    return "Purified Water";
+  }
   return "Purified Water";
 };
 
@@ -205,20 +231,23 @@ export default function CategoryPage() {
         .order("name", { ascending: true });
 
       const rows = (data ?? []) as ProductRow[];
-      const mapped = rows
-        .filter((row) => getLandingCategoryLabel(row.category, row.name) === currentCategory)
-        .map((row) => ({
-          id: row.id,
-          category: row.category,
-          name: row.name,
-          size: row.size,
-          pack: row.pack,
-          bottlePrice: Number(row.bottle_price ?? 0),
-          casePrice: Number(row.case_price ?? 0),
-          note: row.note ?? undefined,
-          icon: getIconForCategory(row.category),
-          photoUrl: row.photo_url ?? undefined,
-        }));
+      const mapped = sortCatalogProductsInCategory(
+        currentCategory,
+        rows
+          .filter((row) => getLandingCategoryLabel(row.category, row.name) === currentCategory)
+          .map((row) => ({
+            id: row.id,
+            category: row.category,
+            name: row.name,
+            size: row.size,
+            pack: row.pack,
+            bottlePrice: Number(row.bottle_price ?? 0),
+            casePrice: Number(row.case_price ?? 0),
+            note: row.note ?? undefined,
+            icon: getIconForCategory(row.category),
+            photoUrl: row.photo_url ?? undefined,
+          }))
+      );
 
       setProducts(mapped);
       setLoading(false);
@@ -352,12 +381,189 @@ export default function CategoryPage() {
     setOrderMessage(`Unable to place order: ${lastError}`);
   };
 
+  const purifiedWaterSections = useMemo(() => {
+    if (currentCategory !== "Purified Water") return null;
+    const drinking = products.filter(
+      (p) => getPurifiedWaterSubcategory(p.name, p.size) === "purified-drinking-water"
+    );
+    const sipPlus = products.filter(
+      (p) => getPurifiedWaterSubcategory(p.name, p.size) === "sip-plus-electrolyte"
+    );
+    return [
+      {
+        key: "purified-drinking-water" as const,
+        title: "Purified Drinking Water",
+        items: drinking,
+      },
+      {
+        key: "sip-plus-electrolyte" as const,
+        title: "SIP Plus Electrolyte Drinks",
+        items: sipPlus,
+      },
+    ].filter((s) => s.items.length > 0);
+  }, [currentCategory, products]);
+
+  const yoghurtSections = useMemo(() => {
+    if (currentCategory !== "Yoghurt Drinks") return null;
+    const yobick = products.filter(
+      (p) => getYoghurtSubcategory(p.name, p.size) === "yobick-yoghurt-drink"
+    );
+    const deedo = products.filter(
+      (p) => getYoghurtSubcategory(p.name, p.size) === "deedo-juice-with-yoghurt"
+    );
+    return [
+      {
+        key: "yobick-yoghurt-drink" as const,
+        title: "Yobick Yoghurt Drink",
+        items: yobick,
+      },
+      {
+        key: "deedo-juice-with-yoghurt" as const,
+        title: "Deedo Juice with Yoghurt",
+        items: deedo,
+      },
+    ].filter((s) => s.items.length > 0);
+  }, [currentCategory, products]);
+
+  const carbonatedSections = useMemo(() => {
+    if (currentCategory !== "Carbonated Drinks") return null;
+    const vida = products.filter(
+      (p) => getCarbonatedSubcategory(p.name, p.size) === "vida-zero-sparkling"
+    );
+    const nutrifizz = products.filter(
+      (p) => getCarbonatedSubcategory(p.name, p.size) === "nutrifizz-prebiotic"
+    );
+    return [
+      {
+        key: "vida-zero-sparkling" as const,
+        title: "Vida Zero Sparkling Drinks",
+        items: vida,
+      },
+      {
+        key: "nutrifizz-prebiotic" as const,
+        title: "Nutrifizz Prebiotic Soda Drinks",
+        items: nutrifizz,
+      },
+    ].filter((s) => s.items.length > 0);
+  }, [currentCategory, products]);
+
+  const snacksSections = useMemo(() => {
+    if (currentCategory !== "Snacks") return null;
+    const kaman = products.filter(
+      (p) => getSnacksSubcategory(p.name, p.size) === "kaman"
+    );
+    return [
+      {
+        key: "kaman" as const,
+        title: "Kaman",
+        items: kaman,
+      },
+    ].filter((s) => s.items.length > 0);
+  }, [currentCategory, products]);
+
+  const renderCatalogProductCard = (p: ProductCard, animIndex: number) => (
+    <motion.article
+      key={`${currentCategory}-${p.id}-${p.name}-${p.size}`}
+      className="group rounded-3xl border border-sky-100 bg-white p-6 shadow-md shadow-sky-500/5 transition hover:-translate-y-1 hover:border-sky-200 hover:shadow-lg hover:shadow-sky-500/10"
+      initial={{ opacity: 0, y: 16 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-24px" }}
+      transition={{ duration: 0.35, delay: animIndex * 0.05 }}
+    >
+      {p.photoUrl ? (
+        <img
+          src={p.photoUrl}
+          alt={`${p.name} product photo`}
+          className="h-[24rem] w-full rounded-2xl border border-sky-100 object-[center_45%] object-cover"
+        />
+      ) : (
+        <div className="flex items-center justify-between">
+          <span className="inline-flex size-11 items-center justify-center rounded-2xl bg-sky-100 text-sky-600">
+            {p.icon}
+          </span>
+          <span className="text-xs font-medium text-slate-500">
+            {formatPackLabel(p.pack, currentCategory ?? "")}
+          </span>
+        </div>
+      )}
+
+      {p.photoUrl ? (
+        <div className="mt-3 flex justify-end">
+          <span className="text-xs font-medium text-slate-500">
+            {formatPackLabel(p.pack, currentCategory ?? "")}
+          </span>
+        </div>
+      ) : null}
+
+      <h4 className="mt-4 text-base font-semibold text-slate-800">{p.name}</h4>
+      <p className="mt-1 text-xs text-slate-500">{formatSizeLabel(p.size)}</p>
+
+      <dl className="mt-4 grid grid-cols-2 gap-3 text-xs text-slate-600">
+        <div className="space-y-1">
+          <dt className="text-[11px] uppercase tracking-wide text-sky-600">
+            {currentCategory === "Snacks" ? "Pack" : "Bottle"}
+          </dt>
+          <dd className="font-semibold text-slate-800">{formatPeso(p.bottlePrice)}</dd>
+        </div>
+        <div className="space-y-1">
+          <dt className="text-[11px] uppercase tracking-wide text-sky-600">Case</dt>
+          <dd className="font-semibold text-slate-800">{formatPeso(p.casePrice)}</dd>
+        </div>
+      </dl>
+
+      {p.note ? (
+        <p className="mt-2 text-[11px] text-slate-500">
+          {currentCategory === "Snacks" ? "₱10.00 each" : p.note}
+        </p>
+      ) : null}
+
+      <div className="mt-6 flex items-center gap-3">
+        <motion.button
+          type="button"
+          onClick={() => addToCart(p, "bottle")}
+          whileTap={{ scale: 0.95 }}
+          animate={
+            recentlyClickedActionKey === `${p.id}-bottle`
+              ? { scale: [1, 0.95, 1.02, 1] }
+              : { scale: 1 }
+          }
+          transition={{ duration: 0.26, ease: "easeOut" }}
+          className={`inline-flex h-10 flex-1 items-center justify-center rounded-full px-4 text-xs font-semibold text-white shadow-lg transition ${
+            recentlyClickedActionKey === `${p.id}-bottle`
+              ? "bg-sky-600 shadow-sky-500/40 ring-2 ring-sky-200"
+              : "bg-sky-500 shadow-sky-500/30 hover:bg-sky-600"
+          }`}
+        >
+          {currentCategory === "Snacks" ? "Add Pack" : "Add Bottle"}
+        </motion.button>
+        <motion.button
+          type="button"
+          onClick={() => addToCart(p, "case")}
+          whileTap={{ scale: 0.95 }}
+          animate={
+            recentlyClickedActionKey === `${p.id}-case`
+              ? { scale: [1, 0.95, 1.02, 1] }
+              : { scale: 1 }
+          }
+          transition={{ duration: 0.26, ease: "easeOut" }}
+          className={`inline-flex h-10 flex-1 items-center justify-center rounded-full border-2 px-4 text-xs font-semibold transition ${
+            recentlyClickedActionKey === `${p.id}-case`
+              ? "border-sky-300 bg-sky-100 text-sky-700 ring-2 ring-sky-200"
+              : "border-sky-200 bg-white text-sky-600 hover:bg-sky-50"
+          }`}
+        >
+          Add Case
+        </motion.button>
+      </div>
+    </motion.article>
+  );
+
   if (!currentCategory) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-sky-50/50 text-slate-800">
         <Navbar
           hideAuthButtons={isAuthenticated}
-          homeHref={isAuthenticated ? "/home" : "/"}
+          homeHref={isAuthenticated ? "/category/purified-water" : "/"}
           categoryLinks={CATEGORY_LABELS.map((label) => ({
             label,
             href: `/category/${categoryToSlug(label)}`,
@@ -399,7 +605,7 @@ export default function CategoryPage() {
     <div className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-sky-50/50 text-slate-800">
       <Navbar
         hideAuthButtons={isAuthenticated}
-        homeHref={isAuthenticated ? "/home" : "/"}
+        homeHref={isAuthenticated ? "/category/purified-water" : "/"}
         categoryLinks={CATEGORY_LABELS.map((label) => ({
           label,
           href: `/category/${categoryToSlug(label)}`,
@@ -613,104 +819,105 @@ export default function CategoryPage() {
           <p className="mt-8 rounded-xl border border-sky-100 bg-sky-50/60 px-3 py-2 text-sm text-slate-700">
             No products available in this category.
           </p>
+        ) : purifiedWaterSections && purifiedWaterSections.length > 0 ? (
+          <div className="mt-8 space-y-14">
+            {purifiedWaterSections.map((section, si) => (
+              <section
+                key={section.key}
+                className="space-y-1"
+                aria-labelledby={`pw-section-${section.key}`}
+              >
+                <div className="border-b border-sky-100/80 pb-2">
+                  <h2
+                    id={`pw-section-${section.key}`}
+                    className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl"
+                  >
+                    {section.title}
+                  </h2>
+                </div>
+                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                  {section.items.map((p, i) =>
+                    renderCatalogProductCard(p, si * 20 + i)
+                  )}
+                </div>
+              </section>
+            ))}
+          </div>
+        ) : yoghurtSections && yoghurtSections.length > 0 ? (
+          <div className="mt-8 space-y-14">
+            {yoghurtSections.map((section, si) => (
+              <section
+                key={section.key}
+                className="space-y-1"
+                aria-labelledby={`yg-section-${section.key}`}
+              >
+                <div className="border-b border-sky-100/80 pb-2">
+                  <h2
+                    id={`yg-section-${section.key}`}
+                    className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl"
+                  >
+                    {section.title}
+                  </h2>
+                </div>
+                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                  {section.items.map((p, i) =>
+                    renderCatalogProductCard(p, si * 20 + i)
+                  )}
+                </div>
+              </section>
+            ))}
+          </div>
+        ) : carbonatedSections && carbonatedSections.length > 0 ? (
+          <div className="mt-8 space-y-14">
+            {carbonatedSections.map((section, si) => (
+              <section
+                key={section.key}
+                className="space-y-1"
+                aria-labelledby={`cd-section-${section.key}`}
+              >
+                <div className="border-b border-sky-100/80 pb-2">
+                  <h2
+                    id={`cd-section-${section.key}`}
+                    className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl"
+                  >
+                    {section.title}
+                  </h2>
+                </div>
+                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                  {section.items.map((p, i) =>
+                    renderCatalogProductCard(p, si * 20 + i)
+                  )}
+                </div>
+              </section>
+            ))}
+          </div>
+        ) : snacksSections && snacksSections.length > 0 ? (
+          <div className="mt-8 space-y-14">
+            {snacksSections.map((section, si) => (
+              <section
+                key={section.key}
+                className="space-y-1"
+                aria-labelledby={`sn-section-${section.key}`}
+              >
+                <div className="border-b border-sky-100/80 pb-2">
+                  <h2
+                    id={`sn-section-${section.key}`}
+                    className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl"
+                  >
+                    {section.title}
+                  </h2>
+                </div>
+                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                  {section.items.map((p, i) =>
+                    renderCatalogProductCard(p, si * 20 + i)
+                  )}
+                </div>
+              </section>
+            ))}
+          </div>
         ) : (
           <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {products.map((p, i) => (
-              <motion.article
-                key={`${currentCategory}-${p.name}-${p.size}`}
-                className="group rounded-3xl border border-sky-100 bg-white p-6 shadow-md shadow-sky-500/5 transition hover:-translate-y-1 hover:border-sky-200 hover:shadow-lg hover:shadow-sky-500/10"
-                initial={{ opacity: 0, y: 16 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-24px" }}
-                transition={{ duration: 0.35, delay: i * 0.05 }}
-              >
-                {p.photoUrl ? (
-                  <img
-                    src={p.photoUrl}
-                    alt={`${p.name} product photo`}
-                    className="h-[24rem] w-full rounded-2xl border border-sky-100 object-[center_45%] object-cover"
-                  />
-                ) : (
-                  <div className="flex items-center justify-between">
-                    <span className="inline-flex size-11 items-center justify-center rounded-2xl bg-sky-100 text-sky-600">
-                      {p.icon}
-                    </span>
-                    <span className="text-xs font-medium text-slate-500">
-                      {formatPackLabel(p.pack, currentCategory)}
-                    </span>
-                  </div>
-                )}
-
-                {p.photoUrl ? (
-                  <div className="mt-3 flex justify-end">
-                    <span className="text-xs font-medium text-slate-500">
-                      {formatPackLabel(p.pack, currentCategory)}
-                    </span>
-                  </div>
-                ) : null}
-
-                <h4 className="mt-4 text-base font-semibold text-slate-800">{p.name}</h4>
-                <p className="mt-1 text-xs text-slate-500">{formatSizeLabel(p.size)}</p>
-
-                <dl className="mt-4 grid grid-cols-2 gap-3 text-xs text-slate-600">
-                  <div className="space-y-1">
-                    <dt className="text-[11px] uppercase tracking-wide text-sky-600">
-                      {currentCategory === "Snacks" ? "Pack" : "Bottle"}
-                    </dt>
-                    <dd className="font-semibold text-slate-800">{formatPeso(p.bottlePrice)}</dd>
-                  </div>
-                  <div className="space-y-1">
-                    <dt className="text-[11px] uppercase tracking-wide text-sky-600">Case</dt>
-                    <dd className="font-semibold text-slate-800">{formatPeso(p.casePrice)}</dd>
-                  </div>
-                </dl>
-
-                {p.note ? (
-                  <p className="mt-2 text-[11px] text-slate-500">
-                    {currentCategory === "Snacks" ? "₱10.00 each" : p.note}
-                  </p>
-                ) : null}
-
-                <div className="mt-6 flex items-center gap-3">
-                  <motion.button
-                    type="button"
-                    onClick={() => addToCart(p, "bottle")}
-                    whileTap={{ scale: 0.95 }}
-                    animate={
-                      recentlyClickedActionKey === `${p.id}-bottle`
-                        ? { scale: [1, 0.95, 1.02, 1] }
-                        : { scale: 1 }
-                    }
-                    transition={{ duration: 0.26, ease: "easeOut" }}
-                    className={`inline-flex h-10 flex-1 items-center justify-center rounded-full px-4 text-xs font-semibold text-white shadow-lg transition ${
-                      recentlyClickedActionKey === `${p.id}-bottle`
-                        ? "bg-sky-600 shadow-sky-500/40 ring-2 ring-sky-200"
-                        : "bg-sky-500 shadow-sky-500/30 hover:bg-sky-600"
-                    }`}
-                  >
-                    {currentCategory === "Snacks" ? "Add Pack" : "Add Bottle"}
-                  </motion.button>
-                  <motion.button
-                    type="button"
-                    onClick={() => addToCart(p, "case")}
-                    whileTap={{ scale: 0.95 }}
-                    animate={
-                      recentlyClickedActionKey === `${p.id}-case`
-                        ? { scale: [1, 0.95, 1.02, 1] }
-                        : { scale: 1 }
-                    }
-                    transition={{ duration: 0.26, ease: "easeOut" }}
-                    className={`inline-flex h-10 flex-1 items-center justify-center rounded-full border-2 px-4 text-xs font-semibold transition ${
-                      recentlyClickedActionKey === `${p.id}-case`
-                        ? "border-sky-300 bg-sky-100 text-sky-700 ring-2 ring-sky-200"
-                        : "border-sky-200 bg-white text-sky-600 hover:bg-sky-50"
-                    }`}
-                  >
-                    Add Case
-                  </motion.button>
-                </div>
-              </motion.article>
-            ))}
+            {products.map((p, i) => renderCatalogProductCard(p, i))}
           </div>
         )}
       </main>

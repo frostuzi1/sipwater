@@ -180,7 +180,7 @@ export default function ProfilePage() {
     <div className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-sky-50/50 text-slate-800">
       <Navbar
         hideAuthButtons
-        homeHref="/home"
+        homeHref="/category/purified-water"
         profileHref="/profile"
         orderHistoryHref="/orders"
         userName={displayName ?? "User"}

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { BackToTopButton } from "@/components/back-to-top-button";
 import { DisableZoom } from "@/components/disable-zoom";
 import { FlashToast } from "@/components/flash-toast";
 
@@ -46,6 +47,7 @@ export default function RootLayout({
         <DisableZoom />
         <FlashToast />
         {children}
+        <BackToTopButton />
       </body>
     </html>
   );
