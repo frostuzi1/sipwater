@@ -16,6 +16,11 @@ import {
 import { isAdminEmail } from "@/lib/admin";
 import { setFlashMessage } from "@/lib/flash-message";
 import { sortCatalogProductsInCategory } from "@/lib/catalog-product-order";
+import {
+  LANDING_CATEGORY_NAV,
+  getLandingCategoryLabel,
+  landingCategorySortIndex,
+} from "@/lib/landing-categories";
 import { getSupabaseClient } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 
@@ -207,55 +212,6 @@ const getIconForCategory = (category: string) => {
   return <Droplets className="size-5" aria-hidden={true} />;
 };
 
-const LANDING_CATEGORY_NAV = [
-  "Purified Water",
-  "Yoghurt Drinks",
-  "Carbonated Drinks",
-  "Snacks",
-] as const;
-
-const normalizeName = (value: string) => value.trim().toLowerCase();
-
-const getLandingCategoryLabel = (sourceCategory: string, productName: string) => {
-  const trimmed = sourceCategory.trim();
-  if ((LANDING_CATEGORY_NAV as readonly string[]).includes(trimmed)) {
-    return trimmed;
-  }
-
-  const category = sourceCategory.toLowerCase();
-  const name = normalizeName(productName);
-
-  if (category.includes("kaman") || name.includes("egg roll")) return "Snacks";
-  if (
-    category.includes("sparkling") ||
-    category.includes("vida") ||
-    category.includes("nutrifizz") ||
-    category.includes("prebiotic") ||
-    category.includes("carbonated") ||
-    name.includes("lemon lime prebiotic") ||
-    name.includes("yogurt soda prebiotic") ||
-    name.includes("yoghurt soda prebiotic")
-  ) {
-    return "Carbonated Drinks";
-  }
-  if (
-    category.includes("yobick") ||
-    category.includes("deedo") ||
-    category.includes("yoghurt drink") ||
-    category.includes("yogurt drink")
-  ) {
-    return "Yoghurt Drinks";
-  }
-  if (
-    category.includes("electrolyte") ||
-    category.includes("purified") ||
-    category.includes("drinking water")
-  ) {
-    return "Purified Water";
-  }
-  return "Purified Water";
-};
-
 const reshapeCatalogGroups = (groups: ProductGroup[]): ProductGroup[] => {
   const grouped: Record<string, Product[]> = {};
   for (const label of LANDING_CATEGORY_NAV) grouped[label] = [];
@@ -299,12 +255,6 @@ const landingItemOrderMap: Map<string, number> = new Map(
     ] as const)
   )
 );
-
-const landingCategorySortIndex = (sourceCategory: string, productName: string) => {
-  const label = getLandingCategoryLabel(sourceCategory, productName);
-  const idx = (LANDING_CATEGORY_NAV as readonly string[]).indexOf(label);
-  return idx >= 0 ? idx : Number.MAX_SAFE_INTEGER;
-};
 
 export default function Home() {
   const router = useRouter();

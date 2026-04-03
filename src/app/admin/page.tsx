@@ -2,16 +2,27 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CircleDollarSign, ShieldCheck, Truck, Users } from "lucide-react";
+import {
+  CircleDollarSign,
+  Droplets,
+  ShieldCheck,
+  Truck,
+  Users,
+} from "lucide-react";
 
 import { ADMIN_EMAIL, isAdminEmail } from "@/lib/admin";
 import { setFlashMessage } from "@/lib/flash-message";
 import { Navbar } from "@/components/navbar";
+import {
+  LANDING_CATEGORY_NAV,
+  getLandingCategoryLabel,
+} from "@/lib/landing-categories";
+import { processProductImageFile } from "@/lib/process-product-image";
 import { getSupabaseClient } from "@/lib/supabase";
 
 const landingCatalog = [
   {
-    category: "Purified Drinking Water",
+    category: "Purified Water",
     name: "SIP Purified Water",
     size: "350 ml",
     pack: "24 / case",
@@ -19,7 +30,7 @@ const landingCatalog = [
     casePrice: "168",
   },
   {
-    category: "Purified Drinking Water",
+    category: "Purified Water",
     name: "SIP Purified Water",
     size: "500 ml",
     pack: "24 / case",
@@ -27,7 +38,7 @@ const landingCatalog = [
     casePrice: "216",
   },
   {
-    category: "Purified Drinking Water",
+    category: "Purified Water",
     name: "SIP Purified Water",
     size: "1000 ml",
     pack: "12 / case",
@@ -35,7 +46,7 @@ const landingCatalog = [
     casePrice: "180",
   },
   {
-    category: "SIP Plus Electrolyte Drinks",
+    category: "Purified Water",
     name: "Original Grapefruit Sugar Free",
     size: "350 ml",
     pack: "12 / case",
@@ -43,7 +54,7 @@ const landingCatalog = [
     casePrice: "360",
   },
   {
-    category: "SIP Plus Electrolyte Drinks",
+    category: "Purified Water",
     name: "Honey Yuzo Sugar Free Electrolytes",
     size: "350 ml",
     pack: "12 / case",
@@ -51,7 +62,7 @@ const landingCatalog = [
     casePrice: "360",
   },
   {
-    category: "Vida Zero Sparkling Drinks",
+    category: "Carbonated Drinks",
     name: "Salty Lychee",
     size: "325 ml",
     pack: "24 / case",
@@ -59,7 +70,7 @@ const landingCatalog = [
     casePrice: "1008",
   },
   {
-    category: "Vida Zero Sparkling Drinks",
+    category: "Carbonated Drinks",
     name: "Original Citrus",
     size: "325 ml",
     pack: "24 / case",
@@ -67,7 +78,7 @@ const landingCatalog = [
     casePrice: "1008",
   },
   {
-    category: "Vida Zero Sparkling Drinks",
+    category: "Carbonated Drinks",
     name: "Lemon",
     size: "325 ml",
     pack: "24 / case",
@@ -75,7 +86,7 @@ const landingCatalog = [
     casePrice: "1008",
   },
   {
-    category: "Yobick Yoghurt Drink",
+    category: "Yoghurt Drinks",
     name: "Original",
     size: "310 ml",
     pack: "24 / case",
@@ -83,7 +94,7 @@ const landingCatalog = [
     casePrice: "1008",
   },
   {
-    category: "Deedo Juice with Yogurt",
+    category: "Yoghurt Drinks",
     name: "Grape Juice (10×6)",
     size: "115 ml",
     pack: "10 / case",
@@ -92,7 +103,7 @@ const landingCatalog = [
     note: "₱12.00 each",
   },
   {
-    category: "Deedo Juice with Yogurt",
+    category: "Yoghurt Drinks",
     name: "Orange Juice (10×6)",
     size: "115 ml",
     pack: "10 / case",
@@ -101,7 +112,7 @@ const landingCatalog = [
     note: "₱12.00 each",
   },
   {
-    category: "Nutrifizz Prebiotic Soda Drinks",
+    category: "Carbonated Drinks",
     name: "Lemon Lime Prebiotic",
     size: "330 ml",
     pack: "24 / case",
@@ -109,7 +120,7 @@ const landingCatalog = [
     casePrice: "864",
   },
   {
-    category: "Nutrifizz Prebiotic Soda Drinks",
+    category: "Carbonated Drinks",
     name: "Yogurt Soda Prebiotic",
     size: "330 ml",
     pack: "24 / case",
@@ -117,7 +128,7 @@ const landingCatalog = [
     casePrice: "864",
   },
   {
-    category: "Kaman",
+    category: "Snacks",
     name: "Coconut Ice Cream Egg Roll (12×20)",
     size: "20 g",
     pack: "12 / case",
@@ -126,7 +137,7 @@ const landingCatalog = [
     note: "10 / pack",
   },
   {
-    category: "Kaman",
+    category: "Snacks",
     name: "Egg Yolk Egg Roll (12×20)",
     size: "20 g",
     pack: "12 / case",
@@ -197,7 +208,7 @@ export default function AdminLandingPage() {
   const editProductRef = useRef<HTMLElement>(null);
   const deleteProductRef = useRef<HTMLElement>(null);
 
-  const categories = [...new Set(landingCatalog.map((item) => item.category))];
+  const categories = [...LANDING_CATEGORY_NAV];
   const names = [
     ...new Set(
       landingCatalog
@@ -262,15 +273,31 @@ export default function AdminLandingPage() {
     ])
   );
 
+  const addProductCategoryOk = Boolean(newProduct.category);
+  const addProductNameOk = addProductCategoryOk && Boolean(newProduct.name);
+  const addProductSizeOk = addProductNameOk && Boolean(newProduct.size);
+  const addProductPackOk = addProductSizeOk && Boolean(newProduct.pack);
+  const addProductBottleOk = addProductPackOk && Boolean(newProduct.bottlePrice);
+  const addProductCaseOk =
+    addProductBottleOk && Boolean(newProduct.casePrice);
+  const addProductSelectDisabledClass =
+    "disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500 disabled:opacity-60";
+
+  const deleteTargetProduct = products.find((p) => p.id === deleteProductId);
+
   const getProductOrder = (product: {
     category: string;
     name: string;
     size: string;
     pack: string;
-  }) =>
-    productOrderMap.get(
-      `${product.category}__${product.name}__${product.size}__${product.pack}`
-    ) ?? Number.MAX_SAFE_INTEGER;
+  }) => {
+    const label = getLandingCategoryLabel(product.category, product.name);
+    return (
+      productOrderMap.get(
+        `${label}__${product.name}__${product.size}__${product.pack}`
+      ) ?? Number.MAX_SAFE_INTEGER
+    );
+  };
 
   const fetchProducts = async () => {
     const supabase = getSupabaseClient();
@@ -323,15 +350,20 @@ export default function AdminLandingPage() {
       throw new Error("Supabase is not configured.");
     }
 
-    const extension = file.name.includes(".")
-      ? file.name.split(".").pop()
+    const processed =
+      file.type.startsWith("image/") && typeof document !== "undefined"
+        ? await processProductImageFile(file)
+        : file;
+
+    const extFromName = processed.name.includes(".")
+      ? processed.name.split(".").pop()
       : "jpg";
-    const safeExtension = extension?.toLowerCase() || "jpg";
+    const safeExtension = extFromName?.toLowerCase() || "jpg";
     const filePath = `products/${Date.now()}-${crypto.randomUUID()}.${safeExtension}`;
 
     const { error: uploadError } = await supabase.storage
       .from("product-images")
-      .upload(filePath, file, { upsert: false });
+      .upload(filePath, processed, { upsert: false });
 
     if (uploadError) {
       throw new Error(
@@ -576,7 +608,7 @@ export default function AdminLandingPage() {
 
     setEditProduct({
       name: selected.name,
-      category: selected.category,
+      category: getLandingCategoryLabel(selected.category, selected.name),
       size: selected.size,
       pack: selected.pack,
       bottlePrice: String(selected.bottle_price),
@@ -815,6 +847,7 @@ export default function AdminLandingPage() {
               </select>
               <select
                 value={newProduct.name}
+                disabled={!addProductCategoryOk}
                 onChange={(event) =>
                   setNewProduct((prev) => ({
                     ...prev,
@@ -826,7 +859,7 @@ export default function AdminLandingPage() {
                     note: "",
                   }))
                 }
-                className="h-10 w-full min-w-0 rounded-xl border border-sky-200 bg-sky-50/40 px-3 text-sm outline-none focus:ring-2 focus:ring-sky-400"
+                className={`h-10 w-full min-w-0 rounded-xl border border-sky-200 bg-sky-50/40 px-3 text-sm outline-none focus:ring-2 focus:ring-sky-400 ${addProductSelectDisabledClass}`}
                 required
               >
                 <option value="">Select product name</option>
@@ -839,6 +872,7 @@ export default function AdminLandingPage() {
               <div className="grid gap-3 sm:grid-cols-2">
                 <select
                   value={newProduct.size}
+                  disabled={!addProductNameOk}
                   onChange={(event) =>
                     setNewProduct((prev) => ({
                       ...prev,
@@ -849,7 +883,7 @@ export default function AdminLandingPage() {
                       note: "",
                     }))
                   }
-                  className="h-10 w-full min-w-0 rounded-xl border border-sky-200 bg-sky-50/40 px-3 text-sm outline-none focus:ring-2 focus:ring-sky-400"
+                  className={`h-10 w-full min-w-0 rounded-xl border border-sky-200 bg-sky-50/40 px-3 text-sm outline-none focus:ring-2 focus:ring-sky-400 ${addProductSelectDisabledClass}`}
                   required
                 >
                   <option value="">Select size</option>
@@ -861,6 +895,7 @@ export default function AdminLandingPage() {
                 </select>
                 <select
                   value={newProduct.pack}
+                  disabled={!addProductSizeOk}
                   onChange={(event) =>
                     setNewProduct((prev) => ({
                       ...prev,
@@ -870,7 +905,7 @@ export default function AdminLandingPage() {
                       note: "",
                     }))
                   }
-                  className="h-10 w-full min-w-0 rounded-xl border border-sky-200 bg-sky-50/40 px-3 text-sm outline-none focus:ring-2 focus:ring-sky-400"
+                  className={`h-10 w-full min-w-0 rounded-xl border border-sky-200 bg-sky-50/40 px-3 text-sm outline-none focus:ring-2 focus:ring-sky-400 ${addProductSelectDisabledClass}`}
                   required
                 >
                   <option value="">Select pack</option>
@@ -884,6 +919,7 @@ export default function AdminLandingPage() {
               <div className="grid gap-3 sm:grid-cols-2">
                 <select
                   value={newProduct.bottlePrice}
+                  disabled={!addProductPackOk}
                   onChange={(event) =>
                     setNewProduct((prev) => ({
                       ...prev,
@@ -892,7 +928,7 @@ export default function AdminLandingPage() {
                       note: "",
                     }))
                   }
-                  className="h-10 w-full min-w-0 rounded-xl border border-sky-200 bg-sky-50/40 px-3 text-sm outline-none focus:ring-2 focus:ring-sky-400"
+                  className={`h-10 w-full min-w-0 rounded-xl border border-sky-200 bg-sky-50/40 px-3 text-sm outline-none focus:ring-2 focus:ring-sky-400 ${addProductSelectDisabledClass}`}
                   required
                 >
                   <option value="">Select bottle price</option>
@@ -904,6 +940,7 @@ export default function AdminLandingPage() {
                 </select>
                 <select
                   value={newProduct.casePrice}
+                  disabled={!addProductBottleOk}
                   onChange={(event) => {
                     const selectedCasePrice = event.target.value;
                     const matched = landingCatalog.find(
@@ -922,7 +959,7 @@ export default function AdminLandingPage() {
                       note: matched?.note ?? "",
                     }));
                   }}
-                  className="h-10 w-full min-w-0 rounded-xl border border-sky-200 bg-sky-50/40 px-3 text-sm outline-none focus:ring-2 focus:ring-sky-400"
+                  className={`h-10 w-full min-w-0 rounded-xl border border-sky-200 bg-sky-50/40 px-3 text-sm outline-none focus:ring-2 focus:ring-sky-400 ${addProductSelectDisabledClass}`}
                   required
                 >
                   <option value="">Select case price</option>
@@ -937,31 +974,38 @@ export default function AdminLandingPage() {
                 type="text"
                 placeholder="Optional note"
                 value={newProduct.note}
+                disabled={!addProductCaseOk}
                 onChange={(event) =>
                   setNewProduct((prev) => ({ ...prev, note: event.target.value }))
                 }
-                className="h-10 w-full rounded-xl border border-sky-200 bg-sky-50/40 px-3 text-sm outline-none focus:ring-2 focus:ring-sky-400"
+                className={`h-10 w-full rounded-xl border border-sky-200 bg-sky-50/40 px-3 text-sm outline-none focus:ring-2 focus:ring-sky-400 ${addProductSelectDisabledClass}`}
               />
               <input
                 type="url"
                 placeholder="Photo URL (optional)"
                 value={newProduct.photoUrl}
+                disabled={!addProductCaseOk}
                 onChange={(event) =>
                   setNewProduct((prev) => ({ ...prev, photoUrl: event.target.value }))
                 }
-                className="h-10 w-full rounded-xl border border-sky-200 bg-sky-50/40 px-3 text-sm outline-none focus:ring-2 focus:ring-sky-400"
+                className={`h-10 w-full rounded-xl border border-sky-200 bg-sky-50/40 px-3 text-sm outline-none focus:ring-2 focus:ring-sky-400 ${addProductSelectDisabledClass}`}
               />
-              <label className="block space-y-2">
-                <span className="text-xs font-medium text-slate-700">
+              <label
+                className={`block space-y-2 ${!addProductCaseOk ? "cursor-not-allowed opacity-60" : ""}`}
+              >
+                <span
+                  className={`text-xs font-medium ${addProductCaseOk ? "text-slate-700" : "text-slate-400"}`}
+                >
                   Upload photo (optional)
                 </span>
                 <input
                   type="file"
                   accept="image/*"
+                  disabled={!addProductCaseOk}
                   onChange={(event) =>
                     setNewProductPhotoFile(event.target.files?.[0] ?? null)
                   }
-                  className="w-full rounded-xl border border-sky-200 bg-sky-50/40 px-3 py-2 text-xs text-slate-700 outline-none focus:ring-2 focus:ring-sky-400"
+                  className={`w-full rounded-xl border border-sky-200 bg-sky-50/40 px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-sky-400 ${addProductSelectDisabledClass} ${addProductCaseOk ? "text-slate-700" : "text-slate-500"}`}
                 />
               </label>
 
@@ -978,7 +1022,7 @@ export default function AdminLandingPage() {
 
               <button
                 type="submit"
-                disabled={productFormLoading}
+                disabled={!addProductCaseOk || productFormLoading}
                 className="inline-flex h-10 items-center justify-center rounded-full bg-sky-500 px-5 text-sm font-semibold text-white shadow-lg shadow-sky-500/30 hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {productFormLoading ? "Adding..." : "Add product"}
@@ -1016,7 +1060,7 @@ export default function AdminLandingPage() {
                       <tr key={product.id} className="border-t border-sky-100">
                         <td className="px-3 py-2 text-slate-800">{product.name}</td>
                         <td className="px-3 py-2 text-slate-600">
-                          {product.category}
+                          {getLandingCategoryLabel(product.category, product.name)}
                         </td>
                         <td className="px-3 py-2 text-slate-600">{product.size}</td>
                         <td className="px-3 py-2 text-slate-600">
@@ -1067,6 +1111,7 @@ export default function AdminLandingPage() {
                 <option value="">Select product to edit</option>
                 {products.map((product) => (
                   <option key={product.id} value={product.id}>
+                    {getLandingCategoryLabel(product.category, product.name)} —{" "}
                     {product.name} - {product.size}
                   </option>
                 ))}
@@ -1081,16 +1126,21 @@ export default function AdminLandingPage() {
                 className="h-10 w-full rounded-xl border border-sky-200 bg-sky-50/40 px-3 text-sm outline-none focus:ring-2 focus:ring-sky-400"
                 required
               />
-              <input
-                type="text"
-                placeholder="Category"
+              <select
                 value={editProduct.category}
                 onChange={(event) =>
                   setEditProduct((prev) => ({ ...prev, category: event.target.value }))
                 }
                 className="h-10 w-full rounded-xl border border-sky-200 bg-sky-50/40 px-3 text-sm outline-none focus:ring-2 focus:ring-sky-400"
                 required
-              />
+              >
+                <option value="">Select category</option>
+                {categories.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
               <div className="grid gap-3 sm:grid-cols-2">
                 <input
                   type="text"
@@ -1224,10 +1274,40 @@ export default function AdminLandingPage() {
                 <option value="">Select product to delete</option>
                 {products.map((product) => (
                   <option key={product.id} value={product.id}>
+                    {getLandingCategoryLabel(product.category, product.name)} —{" "}
                     {product.name} - {product.size}
                   </option>
                 ))}
               </select>
+              {deleteTargetProduct ? (
+                <div className="flex flex-col items-center gap-2 rounded-2xl border border-sky-100 bg-sky-50/40 p-4 sm:flex-row sm:items-center sm:gap-4">
+                  <div className="shrink-0 overflow-hidden rounded-xl border border-sky-100 bg-white">
+                    {deleteTargetProduct.photo_url ? (
+                      <img
+                        src={deleteTargetProduct.photo_url}
+                        alt={`${deleteTargetProduct.name} product photo`}
+                        className="h-36 w-36 object-contain sm:h-40 sm:w-40"
+                      />
+                    ) : (
+                      <div className="flex h-36 w-36 items-center justify-center text-sky-300 sm:h-40 sm:w-40">
+                        <Droplets className="size-10" aria-hidden={true} />
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-center text-xs text-slate-600 sm:text-left">
+                    <span className="font-semibold text-slate-800">
+                      {deleteTargetProduct.name}
+                    </span>
+                    <span className="block text-slate-500">
+                      {getLandingCategoryLabel(
+                        deleteTargetProduct.category,
+                        deleteTargetProduct.name
+                      )}{" "}
+                      · {deleteTargetProduct.size}
+                    </span>
+                  </p>
+                </div>
+              ) : null}
               <button
                 type="button"
                 onClick={handleDeleteProduct}

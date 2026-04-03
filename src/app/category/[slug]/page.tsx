@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
-import { BadgeCheck, Droplets, Leaf, ShieldCheck } from "lucide-react";
+import { BadgeCheck, Droplets, Leaf, ShieldCheck, Trash2 } from "lucide-react";
 
 import { Navbar } from "@/components/navbar";
 import {
@@ -14,6 +14,8 @@ import {
   getYoghurtSubcategory,
   sortCatalogProductsInCategory,
 } from "@/lib/catalog-product-order";
+import { LANDING_CATEGORY_NAV, getLandingCategoryLabel } from "@/lib/landing-categories";
+import { trackClientEvent } from "@/lib/analytics-client";
 import { setFlashMessage } from "@/lib/flash-message";
 import { getSupabaseClient } from "@/lib/supabase";
 
@@ -55,12 +57,7 @@ type CartItem = {
   photoUrl?: string;
 };
 
-const CATEGORY_LABELS = [
-  "Purified Water",
-  "Yoghurt Drinks",
-  "Carbonated Drinks",
-  "Snacks",
-] as const;
+const CATEGORY_LABELS = LANDING_CATEGORY_NAV;
 
 const formatPeso = (amount: number) =>
   `₱${Number(amount ?? 0).toLocaleString(undefined, {
@@ -92,46 +89,6 @@ const getIconForCategory = (category: string) => {
   return <Droplets className="size-5" aria-hidden={true} />;
 };
 
-const getLandingCategoryLabel = (sourceCategory: string, productName: string) => {
-  const trimmed = sourceCategory.trim();
-  if ((CATEGORY_LABELS as readonly string[]).includes(trimmed)) {
-    return trimmed;
-  }
-
-  const category = sourceCategory.toLowerCase();
-  const name = productName.trim().toLowerCase();
-
-  if (category.includes("kaman") || name.includes("egg roll")) return "Snacks";
-  if (
-    category.includes("sparkling") ||
-    category.includes("vida") ||
-    category.includes("nutrifizz") ||
-    category.includes("prebiotic") ||
-    category.includes("carbonated") ||
-    name.includes("lemon lime prebiotic") ||
-    name.includes("yogurt soda prebiotic") ||
-    name.includes("yoghurt soda prebiotic")
-  ) {
-    return "Carbonated Drinks";
-  }
-  if (
-    category.includes("yobick") ||
-    category.includes("deedo") ||
-    category.includes("yoghurt drink") ||
-    category.includes("yogurt drink")
-  ) {
-    return "Yoghurt Drinks";
-  }
-  if (
-    category.includes("electrolyte") ||
-    category.includes("purified") ||
-    category.includes("drinking water")
-  ) {
-    return "Purified Water";
-  }
-  return "Purified Water";
-};
-
 export default function CategoryPage() {
   const router = useRouter();
   const params = useParams<{ slug: string }>();
@@ -155,6 +112,12 @@ export default function CategoryPage() {
   const addOrderAlertTimeoutRef = useRef<number | null>(null);
   const [recentlyClickedActionKey, setRecentlyClickedActionKey] = useState<string | null>(null);
   const clickedActionTimeoutRef = useRef<number | null>(null);
+  const [catalogQuery, setCatalogQuery] = useState("");
+  const [catalogSort, setCatalogSort] = useState<
+    "default" | "price-asc" | "price-desc"
+  >("default");
+  const [deliveryPhone, setDeliveryPhone] = useState("");
+  const [deliveryAddress, setDeliveryAddress] = useState("");
 
   const cartStorageKey = userId ? `sip_cart_${userId}` : null;
 
@@ -175,6 +138,45 @@ export default function CategoryPage() {
     };
     void loadSession();
   }, []);
+
+  useEffect(() => {
+    if (!userId) return;
+    const loadProfile = async () => {
+      const supabase = getSupabaseClient();
+      if (!supabase) return;
+      const { data } = await supabase
+        .from("profiles")
+        .select("address, phone, contact_number")
+        .eq("id", userId)
+        .maybeSingle();
+      if (data) {
+        const row = data as {
+          address?: string | null;
+          phone?: string | null;
+          contact_number?: string | null;
+        };
+        setDeliveryAddress(row.address?.trim() ?? "");
+        setDeliveryPhone(
+          (row.phone ?? row.contact_number ?? "").replace(/\D/g, "").slice(0, 11)
+        );
+      }
+    };
+    void loadProfile();
+  }, [userId]);
+
+  useEffect(() => {
+    if (!currentCategory || loading) return;
+    trackClientEvent("view_category", {
+      category: currentCategory,
+      slug,
+    });
+  }, [currentCategory, loading, slug]);
+
+  useEffect(() => {
+    if (isAuthenticated && activeTab === "view-cart") {
+      trackClientEvent("view_cart", { category: currentCategory ?? "", slug });
+    }
+  }, [isAuthenticated, activeTab, currentCategory, slug]);
 
   useEffect(() => {
     if (!cartStorageKey) {
@@ -292,6 +294,13 @@ export default function CategoryPage() {
     setAddOrderAlert(`${actionLabel} added to cart: ${item.name}.`);
     const actionKey = `${item.id}-${unitType}`;
     setRecentlyClickedActionKey(actionKey);
+    trackClientEvent("add_to_cart", {
+      productId: item.id,
+      name: item.name,
+      unitType,
+      category: currentCategory ?? "",
+      slug,
+    });
     if (addOrderAlertTimeoutRef.current) {
       window.clearTimeout(addOrderAlertTimeoutRef.current);
     }
@@ -322,10 +331,15 @@ export default function CategoryPage() {
     setCart((prev) =>
       prev
         .map((item) =>
-          item.key === key ? { ...item, quantity: Math.max(0, nextQuantity) } : item
+          item.key === key ? { ...item, quantity: Math.max(1, nextQuantity) } : item
         )
         .filter((item) => item.quantity > 0)
     );
+  };
+
+  const removeFromCart = (key: string) => {
+    setOrderStatus("Draft");
+    setCart((prev) => prev.filter((item) => item.key !== key));
   };
 
   const placeOrder = async () => {
@@ -336,57 +350,106 @@ export default function CategoryPage() {
       return;
     }
 
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    if (!token) {
+      setOrderMessage("Please sign in again to place your order.");
+      return;
+    }
+
     setOrderLoading(true);
     setOrderStatus("Submitting");
     setOrderMessage(null);
     const totalPrice = cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
-    const payloads: Array<Record<string, unknown>> = [
-      {
-        user_id: userId,
-        total_price: totalPrice,
-        status: "pending",
-        items: cart.map((item) => ({
-          product_id: item.productId,
-          name: item.name,
-          size: item.size,
-          pack: item.pack,
-          unit_type: item.unitType,
-          unit_price: item.unitPrice,
-          quantity: item.quantity,
-        })),
-      },
-      {
-        user_id: userId,
-        total_price: totalPrice,
-        status: "pending",
-      },
-    ];
+    const idempotency_key = crypto.randomUUID();
+    const items = cart.map((item) => ({
+      product_id: item.productId,
+      name: item.name,
+      size: item.size,
+      pack: item.pack,
+      unit_type: item.unitType,
+      unit_price: item.unitPrice,
+      quantity: item.quantity,
+    }));
 
-    let lastError = "Unknown order error.";
-    for (const payload of payloads) {
-      const { error } = await supabase.from("orders").insert(payload as never);
-      if (!error) {
-        setCart([]);
-        setOrderStatus("Pending Confirmation");
+    try {
+      const res = await fetch("/api/orders", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          idempotency_key,
+          total_price: totalPrice,
+          items,
+        }),
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+        orderId?: string;
+        duplicate?: boolean;
+      };
+
+      if (!res.ok || !json.ok) {
         setOrderLoading(false);
-        setFlashMessage("Order placed successfully.");
-        router.push("/orders");
+        setOrderStatus("Draft");
+        setOrderMessage(json.error ?? "Unable to place order.");
         return;
       }
-      lastError = error.message;
-    }
 
-    setOrderLoading(false);
-    setOrderStatus("Draft");
-    setOrderMessage(`Unable to place order: ${lastError}`);
+      setCart([]);
+      setOrderStatus("Pending Confirmation");
+      setOrderLoading(false);
+      trackClientEvent("checkout_complete", {
+        category: currentCategory ?? "",
+        orderId: json.orderId,
+        duplicate: Boolean(json.duplicate),
+      });
+      setFlashMessage(
+        json.duplicate
+          ? "That order was already submitted."
+          : "Order placed successfully."
+      );
+      router.push("/orders");
+    } catch (e) {
+      setOrderLoading(false);
+      setOrderStatus("Draft");
+      setOrderMessage(
+        e instanceof Error ? e.message : "Network error placing order."
+      );
+    }
   };
+
+  const catalogFilteredProducts = useMemo(() => {
+    let list = [...products];
+    const q = catalogQuery.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          p.size.toLowerCase().includes(q) ||
+          Boolean(p.note && p.note.toLowerCase().includes(q))
+      );
+    }
+    const minUnit = (p: ProductCard) => Math.min(p.bottlePrice, p.casePrice);
+    if (catalogSort === "price-asc") {
+      list.sort((a, b) => minUnit(a) - minUnit(b));
+    } else if (catalogSort === "price-desc") {
+      list.sort((a, b) => minUnit(b) - minUnit(a));
+    }
+    return list;
+  }, [products, catalogQuery, catalogSort]);
 
   const purifiedWaterSections = useMemo(() => {
     if (currentCategory !== "Purified Water") return null;
-    const drinking = products.filter(
+    const drinking = catalogFilteredProducts.filter(
       (p) => getPurifiedWaterSubcategory(p.name, p.size) === "purified-drinking-water"
     );
-    const sipPlus = products.filter(
+    const sipPlus = catalogFilteredProducts.filter(
       (p) => getPurifiedWaterSubcategory(p.name, p.size) === "sip-plus-electrolyte"
     );
     return [
@@ -401,14 +464,14 @@ export default function CategoryPage() {
         items: sipPlus,
       },
     ].filter((s) => s.items.length > 0);
-  }, [currentCategory, products]);
+  }, [currentCategory, catalogFilteredProducts]);
 
   const yoghurtSections = useMemo(() => {
     if (currentCategory !== "Yoghurt Drinks") return null;
-    const yobick = products.filter(
+    const yobick = catalogFilteredProducts.filter(
       (p) => getYoghurtSubcategory(p.name, p.size) === "yobick-yoghurt-drink"
     );
-    const deedo = products.filter(
+    const deedo = catalogFilteredProducts.filter(
       (p) => getYoghurtSubcategory(p.name, p.size) === "deedo-juice-with-yoghurt"
     );
     return [
@@ -423,14 +486,14 @@ export default function CategoryPage() {
         items: deedo,
       },
     ].filter((s) => s.items.length > 0);
-  }, [currentCategory, products]);
+  }, [currentCategory, catalogFilteredProducts]);
 
   const carbonatedSections = useMemo(() => {
     if (currentCategory !== "Carbonated Drinks") return null;
-    const vida = products.filter(
+    const vida = catalogFilteredProducts.filter(
       (p) => getCarbonatedSubcategory(p.name, p.size) === "vida-zero-sparkling"
     );
-    const nutrifizz = products.filter(
+    const nutrifizz = catalogFilteredProducts.filter(
       (p) => getCarbonatedSubcategory(p.name, p.size) === "nutrifizz-prebiotic"
     );
     return [
@@ -445,11 +508,11 @@ export default function CategoryPage() {
         items: nutrifizz,
       },
     ].filter((s) => s.items.length > 0);
-  }, [currentCategory, products]);
+  }, [currentCategory, catalogFilteredProducts]);
 
   const snacksSections = useMemo(() => {
     if (currentCategory !== "Snacks") return null;
-    const kaman = products.filter(
+    const kaman = catalogFilteredProducts.filter(
       (p) => getSnacksSubcategory(p.name, p.size) === "kaman"
     );
     return [
@@ -459,7 +522,7 @@ export default function CategoryPage() {
         items: kaman,
       },
     ].filter((s) => s.items.length > 0);
-  }, [currentCategory, products]);
+  }, [currentCategory, catalogFilteredProducts]);
 
   const renderCatalogProductCard = (p: ProductCard, animIndex: number) => (
     <motion.article
@@ -669,7 +732,7 @@ export default function CategoryPage() {
                   : "text-slate-600 hover:text-sky-600"
               }`}
             >
-              View Cart
+              View Cart ({cart.reduce((sum, item) => sum + item.quantity, 0)})
             </button>
           </div>
         ) : null}
@@ -709,6 +772,32 @@ export default function CategoryPage() {
                 </Link>
               ))}
             </div>
+            <div className="relative mt-6 flex w-full max-w-2xl flex-col gap-3 sm:flex-row sm:items-center">
+              <input
+                type="search"
+                placeholder="Search products in this category…"
+                value={catalogQuery}
+                onChange={(e) => setCatalogQuery(e.target.value)}
+                className="h-11 w-full rounded-full border border-cyan-200/80 bg-white/90 px-4 text-sm text-slate-800 shadow-sm outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-cyan-400"
+                aria-label="Search products"
+              />
+              <label className="flex shrink-0 items-center gap-2 text-xs font-medium text-slate-600 sm:min-w-[11rem]">
+                <span className="hidden sm:inline">Sort</span>
+                <select
+                  value={catalogSort}
+                  onChange={(e) =>
+                    setCatalogSort(
+                      e.target.value as "default" | "price-asc" | "price-desc"
+                    )
+                  }
+                  className="h-11 w-full rounded-full border border-cyan-200/80 bg-white/90 px-3 text-sm text-slate-800 shadow-sm outline-none focus:ring-2 focus:ring-cyan-400 sm:w-auto"
+                >
+                  <option value="default">Catalog order</option>
+                  <option value="price-asc">Price: low to high</option>
+                  <option value="price-desc">Price: high to low</option>
+                </select>
+              </label>
+            </div>
           </section>
         ) : null}
 
@@ -727,6 +816,39 @@ export default function CategoryPage() {
                 Status: {orderStatus}
               </span>
             </div>
+            {deliveryAddress || deliveryPhone ? (
+              <div className="rounded-2xl border border-sky-100 bg-sky-50/60 p-4 text-sm text-slate-700">
+                <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
+                  Saved delivery details
+                </p>
+                {deliveryPhone ? (
+                  <p className="mt-1">
+                    <span className="text-slate-500">Contact:</span>{" "}
+                    <span className="font-medium text-slate-800">{deliveryPhone}</span>
+                  </p>
+                ) : null}
+                {deliveryAddress ? (
+                  <p className="mt-1">
+                    <span className="text-slate-500">Address:</span>{" "}
+                    <span className="font-medium text-slate-800">{deliveryAddress}</span>
+                  </p>
+                ) : null}
+                <Link
+                  href="/profile"
+                  className="mt-2 inline-block text-xs font-semibold text-sky-700 underline-offset-2 hover:underline"
+                >
+                  Edit in profile
+                </Link>
+              </div>
+            ) : isAuthenticated ? (
+              <p className="rounded-2xl border border-amber-100 bg-amber-50/80 px-4 py-3 text-sm text-amber-900">
+                Add your{" "}
+                <Link href="/profile" className="font-semibold text-amber-950 underline">
+                  delivery address and contact
+                </Link>{" "}
+                in your profile to reduce mistakes on repeat orders.
+              </p>
+            ) : null}
             {cart.length === 0 ? (
               <p className="rounded-xl border border-sky-100 bg-sky-50/60 px-3 py-2 text-sm text-slate-700">
                 No items yet. Add products from the Product Catalog tab.
@@ -766,23 +888,35 @@ export default function CategoryPage() {
                         </p>
                       </div>
                     </div>
-                    <div className="flex w-full items-center justify-center gap-2 sm:w-auto sm:shrink-0 sm:self-center">
+                    <div className="flex w-full flex-col items-center gap-2 sm:w-auto sm:shrink-0 sm:self-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          disabled={item.quantity <= 1}
+                          onClick={() => updateQuantity(item.key, item.quantity - 1)}
+                          className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-sky-200 bg-white text-sky-600 hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-40 sm:h-8 sm:w-8"
+                        >
+                          -
+                        </button>
+                        <span className="min-w-8 text-center text-sm font-semibold text-slate-800">
+                          {item.quantity}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => updateQuantity(item.key, item.quantity + 1)}
+                          className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-sky-200 bg-white text-sky-600 hover:bg-sky-50 sm:h-8 sm:w-8"
+                        >
+                          +
+                        </button>
+                      </div>
                       <button
                         type="button"
-                        onClick={() => updateQuantity(item.key, item.quantity - 1)}
-                        className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-sky-200 bg-white text-sky-600 hover:bg-sky-50 sm:h-8 sm:w-8"
+                        onClick={() => removeFromCart(item.key)}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 sm:py-1"
+                        aria-label={`Remove ${item.name} from cart`}
                       >
-                        -
-                      </button>
-                      <span className="min-w-8 text-center text-sm font-semibold text-slate-800">
-                        {item.quantity}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => updateQuantity(item.key, item.quantity + 1)}
-                        className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-sky-200 bg-white text-sky-600 hover:bg-sky-50 sm:h-8 sm:w-8"
-                      >
-                        +
+                        <Trash2 className="size-3.5 shrink-0" aria-hidden={true} />
+                        Remove
                       </button>
                     </div>
                     <div className="w-full text-sm font-semibold text-slate-800 sm:w-auto sm:shrink-0 sm:self-center sm:text-right">
@@ -818,6 +952,20 @@ export default function CategoryPage() {
         ) : products.length === 0 ? (
           <p className="mt-8 rounded-xl border border-sky-100 bg-sky-50/60 px-3 py-2 text-sm text-slate-700">
             No products available in this category.
+          </p>
+        ) : catalogFilteredProducts.length === 0 ? (
+          <p className="mt-8 rounded-xl border border-sky-100 bg-sky-50/60 px-3 py-2 text-sm text-slate-700">
+            No products match your search.{" "}
+            <button
+              type="button"
+              onClick={() => {
+                setCatalogQuery("");
+                setCatalogSort("default");
+              }}
+              className="font-semibold text-sky-700 underline"
+            >
+              Clear filters
+            </button>
           </p>
         ) : purifiedWaterSections && purifiedWaterSections.length > 0 ? (
           <div className="mt-8 space-y-14">

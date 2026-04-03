@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
-import { BadgeCheck, Droplets, Leaf, Truck } from "lucide-react";
+import { BadgeCheck, Droplets, Leaf, Trash2, Truck } from "lucide-react";
 
 import { isAdminEmail } from "@/lib/admin";
 import { setFlashMessage } from "@/lib/flash-message";
@@ -395,10 +395,15 @@ export default function TestLandingPage() {
     setCart((prev) =>
       prev
         .map((item) =>
-          item.key === key ? { ...item, quantity: Math.max(0, nextQuantity) } : item
+          item.key === key ? { ...item, quantity: Math.max(1, nextQuantity) } : item
         )
         .filter((item) => item.quantity > 0)
     );
+  };
+
+  const removeFromCart = (key: string) => {
+    setOrderStatus("Draft");
+    setCart((prev) => prev.filter((item) => item.key !== key));
   };
 
   const placeOrder = async () => {
@@ -578,7 +583,7 @@ export default function TestLandingPage() {
                   : "text-slate-600 hover:text-sky-600"
               }`}
             >
-              View Cart
+              View Cart ({cart.reduce((sum, item) => sum + item.quantity, 0)})
             </button>
           </div>
 
@@ -632,23 +637,35 @@ export default function TestLandingPage() {
                           </p>
                         </div>
                       </div>
-                      <div className="flex w-full items-center justify-center gap-2 sm:w-auto sm:shrink-0 sm:self-center">
+                      <div className="flex w-full flex-col items-center gap-2 sm:w-auto sm:shrink-0 sm:self-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            type="button"
+                            disabled={item.quantity <= 1}
+                            onClick={() => updateQuantity(item.key, item.quantity - 1)}
+                            className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-sky-200 bg-white text-sky-600 hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-40 sm:h-8 sm:w-8"
+                          >
+                            -
+                          </button>
+                          <span className="min-w-8 text-center text-sm font-semibold text-slate-800">
+                            {item.quantity}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => updateQuantity(item.key, item.quantity + 1)}
+                            className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-sky-200 bg-white text-sky-600 hover:bg-sky-50 sm:h-8 sm:w-8"
+                          >
+                            +
+                          </button>
+                        </div>
                         <button
                           type="button"
-                          onClick={() => updateQuantity(item.key, item.quantity - 1)}
-                          className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-sky-200 bg-white text-sky-600 hover:bg-sky-50 sm:h-8 sm:w-8"
+                          onClick={() => removeFromCart(item.key)}
+                          className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 sm:py-1"
+                          aria-label={`Remove ${item.name} from cart`}
                         >
-                          -
-                        </button>
-                        <span className="min-w-8 text-center text-sm font-semibold text-slate-800">
-                          {item.quantity}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => updateQuantity(item.key, item.quantity + 1)}
-                          className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-sky-200 bg-white text-sky-600 hover:bg-sky-50 sm:h-8 sm:w-8"
-                        >
-                          +
+                          <Trash2 className="size-3.5 shrink-0" aria-hidden={true} />
+                          Remove
                         </button>
                       </div>
                       <div className="w-full text-sm font-semibold text-slate-800 sm:w-auto sm:shrink-0 sm:self-center sm:text-right">

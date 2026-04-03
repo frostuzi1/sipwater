@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { Navbar } from "@/components/navbar";
+import { getClientCategoryNavLinks } from "@/lib/landing-categories";
 import { setFlashMessage } from "@/lib/flash-message";
 import { getSupabaseClient } from "@/lib/supabase";
 
@@ -181,6 +182,7 @@ export default function ProfilePage() {
       <Navbar
         hideAuthButtons
         homeHref="/category/purified-water"
+        categoryLinks={getClientCategoryNavLinks()}
         profileHref="/profile"
         orderHistoryHref="/orders"
         userName={displayName ?? "User"}
