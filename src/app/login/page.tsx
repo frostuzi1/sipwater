@@ -26,7 +26,7 @@ export default function LoginPage() {
               <span className="text-sm font-medium">Password</span>
               <input
                 type="password"
-                placeholder="••••••••"
+                placeholder="•••••••"
                 className="h-11 w-full rounded-xl border border-black/10 bg-white px-3 text-sm outline-none ring-sky-500/30 focus:ring-4 dark:border-white/10 dark:bg-black/30"
               />
             </label>
